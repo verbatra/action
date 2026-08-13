@@ -72,3 +72,30 @@ jobs:
         run: |
           echo "::error::action.yml accepted the floating version input 'latest'; the exact-semver guard is not working"
           exit 1
+
+      - name: Assert the forged version input reaches a step as a real multi-line value
+        env:
+          FORGED_VERSION: "9.9.9-forged\n::stop-commands::forged"
+        run: |
+          if [ "$(printf '%s' "$FORGED_VERSION" | wc -l | tr -d ' ')" != "1" ]; then
+            echo "::error::the forged version input is not multi-line, so the rejection case below does not exercise the command-forging vector"
+            exit 1
+          fi
+
+      - name: Reject a version input whose second line forges a workflow command
+        id: forged
+        continue-on-error: true
+        uses: ./
+        with:
+          version: "9.9.9-forged\n::stop-commands::forged"
+          working-directory: .github/fixtures/dry-run
+          dry-run: "true"
+
+      - name: Assert the version input carrying a forged workflow command was rejected
+        if: steps.forged.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted a version input carrying a forged workflow command; the exact-semver guard is not working"
+          exit 1
+
+      - name: Assert the version-guard annotation omits the rejected value so a newline inside it cannot forge a second workflow command
+        run: bash ./assert-version-guard-annotation.sh
