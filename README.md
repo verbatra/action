@@ -19,6 +19,8 @@
 
 Add the action to a workflow. It needs a verbatra config in the repository (for example `verbatra.config.ts` or `.verbatrarc.json`) and the API key of your configured provider, passed from `secrets`:
 
+> Read this before copying. This action has no releases yet, so the `mariokreitz/verbatra-action@v1` reference used in every example below does not resolve today and a workflow that uses it as-is will fail. Replace `@v1` with a full commit SHA from `main`. `@v1` is the moving major tag cut with the first published release, and it is documented here so the examples stay correct once that release exists; see [The action reference itself](#the-action-reference-itself) for why a SHA is the better pin either way.
+
 ```yaml
 name: Translate
 on:
@@ -39,8 +41,6 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
-
-> The examples below reference `mariokreitz/verbatra-action@v1`. That tag is cut with the first published release; until then this repository has no tags, so reference a commit SHA from `main` instead.
 
 See [Configuration](https://verbatra.kreitz-webdev.de/docs/config-file) for the config reference and [Providers](https://verbatra.kreitz-webdev.de/docs/providers) for the provider options.
 
@@ -123,7 +123,7 @@ The action installs the CLI via `npx` at run time, so the pinned `version` is wh
 
 ### The action reference itself
 
-`mariokreitz/verbatra-action@v1` is a moving major-version tag: it is convenient and it keeps picking up fixes, but it is mutable. The security-conscious form is a full 40-character commit SHA, which is immutable:
+`mariokreitz/verbatra-action@v1` is a moving major-version tag: it is convenient and it keeps picking up fixes, but it is mutable. It also does not exist yet, as noted in the quick start. The security-conscious form is a full 40-character commit SHA, which is immutable and which works today:
 
 ```yaml
       - uses: mariokreitz/verbatra-action@<commit-sha> # v1.0.0
@@ -163,7 +163,7 @@ The hosted documentation site at [verbatra.kreitz-webdev.de](https://verbatra.kr
 
 ## Contributing
 
-Contributions are welcome. This repository follows the main project's guidelines, so please read [CONTRIBUTING.md](https://github.com/mariokreitz/verbatra/blob/main/CONTRIBUTING.md) and the [Code of Conduct](https://github.com/mariokreitz/verbatra/blob/main/CODE_OF_CONDUCT.md) first. Commits here follow Conventional Commits. Run `npm ci && npm test` before opening a pull request; the same suite runs in CI on Node 22.14.0 and 24, alongside a job that runs the action against itself.
+Contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md) first; they follow the main project's guidelines, with the differences this repository actually has (npm rather than pnpm, no changesets, no commit hook). Commits here follow Conventional Commits. Run `npm ci && npm test` before opening a pull request; the same suite runs in CI on Node 22.14.0 and 24, alongside a job that runs the action against itself.
 
 ## License
 
