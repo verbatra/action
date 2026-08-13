@@ -1,0 +1,17 @@
+# Blank issues stay off, so every report starts from a template and lands in the
+# right repository. The engine and the action are separate repositories, and an
+# engine bug filed here cannot be fixed here.
+blank_issues_enabled: false
+contact_links:
+  - name: Translation engine, provider, or format bug
+    url: https://github.com/mariokreitz/verbatra/issues/new/choose
+    about: Wrong or missing translations, a provider error, a format adapter problem, or a CLI flag or config key. These live in the main verbatra repository, which is where a fix would ship.
+  - name: CLI, SDK, or Studio question
+    url: https://github.com/mariokreitz/verbatra/issues/new/choose
+    about: Anything about @verbatra/cli, @verbatra/sdk, or @verbatra/studio. The action only installs and runs the pinned CLI version.
+  - name: Documentation
+    url: https://verbatra.kreitz-webdev.de/docs/github-action
+    about: The GitHub Action guide and the full CLI and config reference. Read this before filing, and open documentation issues in the main repository.
+  - name: Security vulnerability
+    url: https://github.com/mariokreitz/verbatra-action/security/advisories/new
+    about: Report privately through GitHub's private vulnerability reporting. Do not open a public issue for a vulnerability.
