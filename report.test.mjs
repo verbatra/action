@@ -333,7 +333,6 @@ describe("extractCliError and workflow-command escaping", () => {
 describe("job-summary escaping: untrusted values cannot break the markdown", () => {
   const tableLines = (rendered) => rendered.split("\n").filter((line) => line.startsWith("|"));
   const headingLines = (rendered) => rendered.split("\n").filter((line) => line.startsWith("#"));
-  // Split a rendered row on its real cell separators only, ignoring backslash-escaped pipes.
   const cells = (row) => row.split(/(?<!\\)\|/);
 
   it("a locale name with a newline and a pipe stays one table row of the right width", () => {
@@ -344,7 +343,6 @@ describe("job-summary escaping: untrusted values cannot break the markdown", () 
     const report = buildReport(s, 0);
     const [head, , row] = tableLines(report.summary);
 
-    // head + separator + exactly one row.
     expect(tableLines(report.summary)).toHaveLength(3);
     expect(cells(row)).toHaveLength(cells(head).length);
     expect(row).toContain("| de\\|x \\| zz \\| ok \\|");

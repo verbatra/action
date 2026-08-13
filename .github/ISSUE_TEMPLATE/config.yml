@@ -1,6 +1,3 @@
-# Blank issues stay off, so every report starts from a template and lands in the
-# right repository. The engine and the action are separate repositories, and an
-# engine bug filed here cannot be fixed here.
 blank_issues_enabled: false
 contact_links:
   - name: Translation engine, provider, or format bug

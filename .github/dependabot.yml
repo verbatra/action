@@ -1,10 +1,6 @@
 version: 2
 
 updates:
-  # The action's own toolchain: vitest and its v8 coverage provider, pinned to concrete versions in
-  # package.json with a committed package-lock.json. These are devDependencies only; nothing in this
-  # repository is published to npm, and the CLI the action runs at run time is resolved by the
-  # `version` input, not from this manifest.
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
@@ -22,10 +18,6 @@ updates:
           - "minor"
           - "patch"
 
-  # Covers both the workflow files under .github/workflows and the composite action.yml at the
-  # repository root, since the root directory entry scans every Actions manifest beneath it. Every
-  # `uses:` in this repository is pinned to a full commit SHA, so these proposals are what keeps the
-  # pins current: without them a SHA pin silently ages instead of drifting visibly.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

@@ -2,9 +2,6 @@ name: verbatra
 description: Run verbatra translations in CI, annotate failures, and write a job summary
 author: Mario Kreitz
 
-# Renders the Marketplace listing badge. "icon" must name a v4.28.0 Feather icon that is not on
-# GitHub's unsupported list, and "color" must be one of white, black, yellow, blue, green, orange,
-# red, purple, or gray-dark.
 branding:
   icon: globe
   color: blue
@@ -43,13 +40,6 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
 
-    # First rejects a version input that is not an exact semver (no dist-tags, ranges, or ^/~
-    # prefixes), which would otherwise let npx silently resolve an unpinned release. Past that guard,
-    # captures stdout and exit code without failing the step (a composite step aborts on non-zero,
-    # which would skip annotation). Inputs travel via env: as data and bash expands them into a quoted
-    # array, so a crafted value stays an argument and is never evaluated as shell. The temp-file paths
-    # are written to GITHUB_OUTPUT so the annotate step below reads them from this step's outputs
-    # instead of re-deriving the same literals.
     - name: Run verbatra translate
       id: run
       shell: bash
@@ -61,11 +51,6 @@ runs:
         SUMMARY_FILE: ${{ runner.temp }}/verbatra-summary.json
         ERROR_FILE: ${{ runner.temp }}/verbatra-error.txt
       run: |
-        # The error message below intentionally does not echo $VERBATRA_VERSION: the value is
-        # untrusted and a newline in it would forge a second workflow command (e.g.
-        # ::stop-commands::) in the Actions log parser. The regex has already determined the value
-        # is invalid, so a generic message conveys the same information without ever placing
-        # untrusted data on a `::error::` line.
         if ! [[ "$VERBATRA_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
           echo "::error::the version input must be an exact semver version, e.g. 1.2.3 or 1.2.3-next.0. Dist-tags such as 'latest', ranges, and prefixes such as '^' or '~' are not allowed."
           exit 1
@@ -81,7 +66,6 @@ runs:
         echo "exit_code=$?" >>"$GITHUB_OUTPUT"
         exit 0
 
-    # Exit with the CLI's code so the action fails only after annotations and the summary are emitted.
     - name: Annotate and summarize
       shell: bash
       env:

@@ -73,16 +73,6 @@ function fixture(name, content) {
   return path;
 }
 
-/**
- * Import annotate.mjs in-process with process.argv and GITHUB_STEP_SUMMARY set for this case,
- * process.exit and stdout.write stubbed so the module's top-level side effects are observable
- * instead of ending the test worker. A cache-busting query forces re-evaluation of the module's
- * top-level code on every call, since Node's module cache would otherwise skip it on re-import.
- *
- * @param argv - Arguments to place after "node annotate.mjs" (summaryFile, errorFile, exitCodeArg).
- * @param stepSummaryPath - Path to set as GITHUB_STEP_SUMMARY, or undefined to leave it unset.
- * @returns The exit and stdout-write spies, so the caller can assert on them.
- */
 async function runInProcess(argv, stepSummaryPath) {
   process.argv = ["node", scriptPath, ...argv];
   if (stepSummaryPath === undefined) {

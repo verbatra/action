@@ -6,9 +6,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Least privilege for the whole workflow. Nothing here writes to the repository, comments on a
-# pull request, or publishes anything, so read access to the contents is all any job needs. Both
-# jobs restate it at the job level so a later workflow-level widening cannot silently reach them.
 permissions:
   contents: read
 
@@ -26,13 +23,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 22.14.0 is the engines floor declared in package.json; 24 is the action.yml default that
-        # a consumer gets when they do not set node-version. Both have to stay green.
         node-version: ["22.14.0", "24"]
     steps:
-      # No step after the checkout talks to the remote: the job installs from npm and runs the
-      # test suite, so leaving the token in .git/config would only widen the blast radius of a
-      # compromised dependency.
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -54,21 +46,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      # The checkout exists only so `uses: ./` can find the action in the workspace. Nothing here
-      # pushes, tags, or otherwise reaches the remote, so the token does not need to persist.
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # Exercises action.yml itself: the input wiring, the semver guard, the npx invocation, and
-      # the annotate step's "$GITHUB_ACTION_PATH/annotate.mjs" resolution. `uses: ./` runs the
-      # action from this checkout rather than from a published ref, so a broken composite fails
-      # here instead of in a consumer's workflow.
-      #
-      # No provider API key is set, and none is needed: with dry-run true the CLI runs
-      # `translate --dry-run`, and the SDK constructs a provider only when dryRun is false. The
-      # job therefore also passes on a pull request from a fork, where no secret is available.
       - name: Run the action against the dry-run fixture
         uses: ./
         with:
@@ -76,9 +58,6 @@ jobs:
           working-directory: .github/fixtures/dry-run
           dry-run: "true"
 
-      # The negative half: a floating version must fail the step before anything is installed.
-      # continue-on-error records the outcome instead of ending the job, so the next step can
-      # assert on it.
       - name: Reject a floating version input
         id: floating
         continue-on-error: true
