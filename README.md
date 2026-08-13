@@ -153,9 +153,17 @@ This action is the CI surface of verbatra, not a separate tool. It wraps the sam
 
 Issues about translation behavior, formats, providers, or the CLI itself belong in the [main repository](https://github.com/mariokreitz/verbatra/issues). Issues about the action's inputs, annotations, or job summary belong [here](https://github.com/mariokreitz/verbatra-action/issues).
 
+## Security
+
+Provider API keys are never accepted as an action input. They are read only from the environment, passed in from `${{ secrets.* }}`, and an error message names the variable but never its value. Every `uses:` reference in this repository is pinned to a full commit SHA, the lockfile is committed and CI installs are frozen, and the `version` input is rejected unless it is an exact semver version. To report a vulnerability, see [SECURITY.md](./SECURITY.md).
+
 ## Documentation
 
 The hosted documentation site at [verbatra.kreitz-webdev.de](https://verbatra.kreitz-webdev.de) is the canonical reference. The [GitHub Action guide](https://verbatra.kreitz-webdev.de/docs/github-action) covers this action in the context of a full project, and the [CLI reference](https://verbatra.kreitz-webdev.de/docs/cli) documents every command and flag the action runs on your behalf.
+
+## Contributing
+
+Contributions are welcome. This repository follows the main project's guidelines, so please read [CONTRIBUTING.md](https://github.com/mariokreitz/verbatra/blob/main/CONTRIBUTING.md) and the [Code of Conduct](https://github.com/mariokreitz/verbatra/blob/main/CODE_OF_CONDUCT.md) first. Commits here follow Conventional Commits. Run `npm ci && npm test` before opening a pull request; the same suite runs in CI on Node 22.14.0 and 24, alongside a job that runs the action against itself.
 
 ## License
 
