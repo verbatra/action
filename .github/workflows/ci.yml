@@ -20,6 +20,7 @@ jobs:
   test:
     name: Unit tests (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     strategy:
@@ -29,8 +30,13 @@ jobs:
         # a consumer gets when they do not set node-version. Both have to stay green.
         node-version: ["22.14.0", "24"]
     steps:
+      # No step after the checkout talks to the remote: the job installs from npm and runs the
+      # test suite, so leaving the token in .git/config would only widen the blast radius of a
+      # compromised dependency.
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -44,11 +50,16 @@ jobs:
   self-test:
     name: Self-test the composite action
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
+      # The checkout exists only so `uses: ./` can find the action in the workspace. Nothing here
+      # pushes, tags, or otherwise reaches the remote, so the token does not need to persist.
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # Exercises action.yml itself: the input wiring, the semver guard, the npx invocation, and
       # the annotate step's "$GITHUB_ACTION_PATH/annotate.mjs" resolution. `uses: ./` runs the
