@@ -330,6 +330,102 @@ describe("extractCliError and workflow-command escaping", () => {
   });
 });
 
+describe("job-summary escaping: untrusted values cannot break the markdown", () => {
+  const tableLines = (rendered) => rendered.split("\n").filter((line) => line.startsWith("|"));
+  const headingLines = (rendered) => rendered.split("\n").filter((line) => line.startsWith("#"));
+  // Split a rendered row on its real cell separators only, ignoring backslash-escaped pipes.
+  const cells = (row) => row.split(/(?<!\\)\|/);
+
+  it("a locale name with a newline and a pipe stays one table row of the right width", () => {
+    const s = summary({
+      locales: [locale({ locale: "de|x\n| zz | ok | 9 | 9 | 9 | 9 | 9 | 9 | 9 |" })],
+      succeeded: ["de"],
+    });
+    const report = buildReport(s, 0);
+    const [head, , row] = tableLines(report.summary);
+
+    // head + separator + exactly one row.
+    expect(tableLines(report.summary)).toHaveLength(3);
+    expect(cells(row)).toHaveLength(cells(head).length);
+    expect(row).toContain("| de\\|x \\| zz \\| ok \\|");
+    expect(headingLines(report.summary)).toHaveLength(1);
+  });
+
+  it("a locale name with a newline cannot inject a heading into the summary", () => {
+    const s = summary({
+      locales: [locale({ locale: "de\n## Forged heading\n[phish](https://evil.example)" })],
+      succeeded: ["de"],
+    });
+    const report = buildReport(s, 0);
+
+    expect(tableLines(report.summary)).toHaveLength(3);
+    expect(headingLines(report.summary)).toEqual(["## verbatra translation summary"]);
+    expect(report.summary).not.toContain("\n## Forged heading");
+  });
+
+  it("a provider error message with a newline and a heading stays one list item", () => {
+    const s = summary({
+      locales: [
+        locale({
+          locale: "fr",
+          status: "failed",
+          error: {
+            code: "LOCALE_FAILED",
+            message: "provider 503\n## Forged heading\n[phish](https://evil.example)",
+          },
+        }),
+      ],
+      failed: ["fr"],
+    });
+    const report = buildReport(s, 1);
+    const listItems = report.summary.split("\n").filter((line) => line.startsWith("- "));
+
+    expect(listItems).toHaveLength(1);
+    expect(listItems[0]).toContain("[phish](https://evil.example)");
+    expect(headingLines(report.summary)).toEqual(["## verbatra translation summary"]);
+  });
+
+  it("a pipe in a failed locale's code or message is escaped in the list item", () => {
+    const s = summary({
+      locales: [
+        locale({
+          locale: "fr|1",
+          status: "failed",
+          error: { code: "C|D", message: "a|b" },
+        }),
+      ],
+      failed: ["fr|1"],
+    });
+    const report = buildReport(s, 1);
+    expect(report.summary).toContain("- fr\\|1: [C\\|D] a\\|b");
+  });
+
+  it("raw stderr with a newline and a heading cannot inject structure into the failure summary", () => {
+    const report = buildReport(null, 2, "boom\n## Forged heading\n[phish](https://evil.example)");
+
+    expect(headingLines(report.summary)).toEqual(["## verbatra run failed"]);
+    expect(report.summary).toBe(
+      [
+        "## verbatra run failed",
+        "",
+        "The verbatra run could not complete (exit 2).",
+        "",
+        "boom ## Forged heading [phish](https://evil.example)",
+      ].join("\n"),
+    );
+  });
+
+  it("a trailing backslash cannot escape the pipe escape", () => {
+    const s = summary({
+      locales: [locale({ locale: "de\\|x" })],
+      succeeded: ["de"],
+    });
+    const report = buildReport(s, 0);
+    expect(tableLines(report.summary)).toHaveLength(3);
+    expect(report.summary).toContain("| de\\\\\\|x | ok |");
+  });
+});
+
 describe("resolveExitCode: the legitimate-success case survives", () => {
   it("passes through a genuine zero exit code (the CLI succeeded)", () => {
     expect(resolveExitCode("0")).toBe(0);

@@ -5,7 +5,10 @@
  *
  * Everything placed into a workflow command is percent-encoded first. Locale names, provider error
  * messages, and raw CLI stderr are untrusted: a newline in any of them would end the `::error::`
- * line and let whatever follows be parsed as a second, forged workflow command.
+ * line and let whatever follows be parsed as a second, forged workflow command. The same values
+ * reach the job summary, which is markdown rather than a workflow command, so they are escaped for
+ * that position too: a newline there ends the table row or list item the value sits in, corrupting
+ * the table and letting the remainder render as document structure of its own.
  *
  * The exit status is the CLI's exit code propagated verbatim. The action consumes the CLI's
  * contract instead of re-deriving success or failure from the summary contents, so the two can
@@ -33,6 +36,29 @@ function escapeData(value) {
  */
 function escapeProperty(value) {
   return escapeData(value).replace(/:/g, "%3A").replace(/,/g, "%2C");
+}
+
+/**
+ * Escape an untrusted value placed into the job-summary markdown. Two characters carry structure
+ * there. A line break ends the table row or the list item the value sits in, which both corrupts
+ * the counts table (the row after it is parsed as its own row, or as body text) and lets the
+ * remainder of the value render as a forged heading, list, or link. A `|` closes the table cell.
+ *
+ * Line breaks collapse to a single space, and `\` and `|` are backslash-escaped. The backslash is
+ * escaped first, so a value already containing one cannot escape the escape and reopen the cell.
+ *
+ * The step summary is not scanned for workflow commands and GitHub sanitizes the rendered markdown,
+ * so this is about keeping the document structurally intact, not about command forgery; the
+ * workflow-command path has its own encoding above.
+ *
+ * @param value - The untrusted text to place into the markdown document.
+ * @returns The value as a single line, safe to interpolate into a table cell or a list item.
+ */
+function escapeMarkdown(value) {
+  return String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|")
+    .replace(/\r\n|\r|\n/g, " ");
 }
 
 /**
@@ -156,7 +182,7 @@ function resolveLocaleError(entry) {
  */
 function countsRow(entry) {
   const status = entry.status === "failed" ? "failed" : "ok";
-  return `| ${entry.locale} | ${status} | ${entry.translated.length} | ${entry.unchanged.length} | ${entry.orphaned.length} | ${entry.invalidIcuSource.length} | ${entry.integrityMismatches.length} | ${entry.providerFailures.length} | ${entry.notices.length} |`;
+  return `| ${escapeMarkdown(entry.locale)} | ${status} | ${entry.translated.length} | ${entry.unchanged.length} | ${entry.orphaned.length} | ${entry.invalidIcuSource.length} | ${entry.integrityMismatches.length} | ${entry.providerFailures.length} | ${entry.notices.length} |`;
 }
 
 /**
@@ -186,7 +212,9 @@ function summaryMarkdown(summary) {
     lines.push("", "Failed locales:");
     for (const locale of failedLocales) {
       const { code, message } = resolveLocaleError(locale);
-      lines.push(`- ${locale.locale}: [${code}] ${message}`);
+      lines.push(
+        `- ${escapeMarkdown(locale.locale)}: [${escapeMarkdown(code)}] ${escapeMarkdown(message)}`,
+      );
     }
   }
   return lines.join("\n");
@@ -246,7 +274,9 @@ function wholeRunMarkdown(exitCode, stderrText) {
     stderrText,
     `The run could not complete (exit ${exitCode}).`,
   );
-  const detail = cliError ? `[${cliError.code}] ${cliError.message}` : fallback;
+  const detail = cliError
+    ? `[${escapeMarkdown(cliError.code)}] ${escapeMarkdown(cliError.message)}`
+    : escapeMarkdown(fallback);
   return [
     "## verbatra run failed",
     "",
