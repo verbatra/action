@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mariokreitz/verbatra-action/main/.github/assets/banner.webp" alt="verbatra: automated i18n translation for modern applications" />
+  <img src="https://raw.githubusercontent.com/verbatra/action/main/.github/assets/banner.webp" alt="verbatra: automated i18n translation for modern applications" />
 </p>
 
 <h1 align="center">verbatra GitHub Action</h1>
@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/mariokreitz/verbatra-action/actions/workflows/ci.yml"><img src="https://github.com/mariokreitz/verbatra-action/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
+  <a href="https://github.com/verbatra/action/actions/workflows/ci.yml"><img src="https://github.com/verbatra/action/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <a href="https://www.npmjs.com/package/@verbatra/cli"><img src="https://img.shields.io/npm/v/@verbatra/cli?label=%40verbatra%2Fcli" alt="@verbatra/cli npm version" /></a>
   <a href="https://github.com/mariokreitz/verbatra"><img src="https://img.shields.io/badge/project-verbatra-blue.svg" alt="Part of the verbatra project" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
@@ -19,7 +19,7 @@
 
 Add the action to a workflow. It needs a verbatra config in the repository (for example `verbatra.config.ts` or `.verbatrarc.json`) and the API key of your configured provider, passed from `secrets`:
 
-> Read this before copying. This action has no releases yet, so the `mariokreitz/verbatra-action@v1` reference used in every example below does not resolve today and a workflow that uses it as-is will fail. Replace `@v1` with a full commit SHA from `main`. `@v1` is the moving major tag cut with the first published release, and it is documented here so the examples stay correct once that release exists; see [The action reference itself](#the-action-reference-itself) for why a SHA is the better pin either way.
+> Read this before copying. This action has no releases yet, so the `verbatra/action@v1` reference used in every example below does not resolve today and a workflow that uses it as-is will fail. Replace `@v1` with a full commit SHA from `main`. `@v1` is the moving major tag cut with the first published release, and it is documented here so the examples stay correct once that release exists; see [The action reference itself](#the-action-reference-itself) for why a SHA is the better pin either way.
 
 ```yaml
 name: Translate
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: mariokreitz/verbatra-action@v1
+      - uses: verbatra/action@v1
         with:
           version: 0.7.1
         env:
@@ -49,7 +49,7 @@ See [Configuration](https://verbatra.kreitz-webdev.de/docs/config-file) for the 
 Set `dry-run: true` to report what would change without calling a provider and without writing any file. A dry run never constructs a provider, so it needs no API key at all. It is the cheapest way to gate a pull request on "are the locale files in sync".
 
 ```yaml
-      - uses: mariokreitz/verbatra-action@v1
+      - uses: verbatra/action@v1
         with:
           version: 0.7.1
           dry-run: "true"
@@ -123,10 +123,10 @@ The action installs the CLI via `npx` at run time, so the pinned `version` is wh
 
 ### The action reference itself
 
-`mariokreitz/verbatra-action@v1` is a moving major-version tag: it is convenient and it keeps picking up fixes, but it is mutable. It also does not exist yet, as noted in the quick start. The security-conscious form is a full 40-character commit SHA, which is immutable and which works today:
+`verbatra/action@v1` is a moving major-version tag: it is convenient and it keeps picking up fixes, but it is mutable. It also does not exist yet, as noted in the quick start. The security-conscious form is a full 40-character commit SHA, which is immutable and which works today:
 
 ```yaml
-      - uses: mariokreitz/verbatra-action@<commit-sha> # v1.0.0
+      - uses: verbatra/action@<commit-sha> # v1.0.0
 ```
 
 Pin every `uses:` reference this way, including `actions/checkout` in the example above. Keep the human-readable version in a trailing comment so the pin stays reviewable, and let Dependabot propose the SHA bumps.
@@ -151,7 +151,7 @@ This action is the CI surface of verbatra, not a separate tool. It wraps the sam
 | [`@verbatra/cli` on npm](https://www.npmjs.com/package/@verbatra/cli) | The package this action installs and runs. |
 | [verbatra.kreitz-webdev.de](https://verbatra.kreitz-webdev.de) | The documentation site, including the [GitHub Action guide](https://verbatra.kreitz-webdev.de/docs/github-action) and the [CLI reference](https://verbatra.kreitz-webdev.de/docs/cli). |
 
-Issues about translation behavior, formats, providers, or the CLI itself belong in the [main repository](https://github.com/mariokreitz/verbatra/issues). Issues about the action's inputs, annotations, or job summary belong [here](https://github.com/mariokreitz/verbatra-action/issues).
+Issues about translation behavior, formats, providers, or the CLI itself belong in the [main repository](https://github.com/mariokreitz/verbatra/issues). Issues about the action's inputs, annotations, or job summary belong [here](https://github.com/verbatra/action/issues).
 
 ## Security
 

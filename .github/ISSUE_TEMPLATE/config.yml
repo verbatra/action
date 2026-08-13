@@ -10,5 +10,5 @@ contact_links:
     url: https://verbatra.kreitz-webdev.de/docs/github-action
     about: The GitHub Action guide and the full CLI and config reference. Read this before filing, and open documentation issues in the main repository.
   - name: Security vulnerability
-    url: https://github.com/mariokreitz/verbatra-action/security/advisories/new
+    url: https://github.com/verbatra/action/security/advisories/new
     about: Report privately through GitHub's private vulnerability reporting. Do not open a public issue for a vulnerability.

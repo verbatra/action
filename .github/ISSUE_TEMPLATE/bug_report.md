@@ -27,7 +27,7 @@ What you expected to happen instead.
 
 ## Environment
 
-- Action reference (the tag or commit SHA after `uses: mariokreitz/verbatra-action@`):
+- Action reference (the tag or commit SHA after `uses: verbatra/action@`):
 - `version` input (the pinned `@verbatra/cli` version):
 - Runner OS (for example `ubuntu-latest`, or your self-hosted runner's OS):
 - `node-version` input (if you set one):

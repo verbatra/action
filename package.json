@@ -1,5 +1,5 @@
 {
-  "name": "verbatra-action",
+  "name": "@verbatra/action",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -8,11 +8,11 @@
   "author": "Mario Kreitz",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mariokreitz/verbatra-action.git"
+    "url": "git+https://github.com/verbatra/action.git"
   },
-  "homepage": "https://github.com/mariokreitz/verbatra-action#readme",
+  "homepage": "https://github.com/verbatra/action#readme",
   "bugs": {
-    "url": "https://github.com/mariokreitz/verbatra-action/issues"
+    "url": "https://github.com/verbatra/action/issues"
   },
   "engines": {
     "node": ">=22.14.0"
