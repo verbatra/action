@@ -11,6 +11,7 @@
 <p align="center">
   <a href="https://github.com/verbatra/action/actions/workflows/ci.yml"><img src="https://github.com/verbatra/action/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <a href="https://www.npmjs.com/package/@verbatra/cli"><img src="https://img.shields.io/npm/v/@verbatra/cli?label=%40verbatra%2Fcli" alt="@verbatra/cli npm version" /></a>
+  <a href="https://github.com/marketplace/actions/verbatra"><img src="https://img.shields.io/github/v/release/verbatra/action?sort=semver&amp;label=marketplace&amp;color=blue" alt="GitHub Marketplace" /></a>
   <a href="https://github.com/verbatra/verbatra"><img src="https://img.shields.io/badge/project-verbatra-blue.svg" alt="Part of the verbatra project" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
@@ -19,7 +20,7 @@
 
 Add the action to a workflow. It needs a verbatra config in the repository (for example `verbatra.config.ts` or `.verbatrarc.json`) and the API key of your configured provider, passed from `secrets`:
 
-> Read this before copying. This action has no releases yet, so the `verbatra/action@v1` reference used in every example below does not resolve today and a workflow that uses it as-is will fail. Replace `@v1` with a full commit SHA from `main`. `@v1` is the moving major tag cut with the first published release, and it is documented here so the examples stay correct once that release exists; see [The action reference itself](#the-action-reference-itself) for why a SHA is the better pin either way.
+> The examples below use `verbatra/action@v1`, the moving major tag that tracks the latest v1 release. It is the convenient form. For an immutable pin, replace it with a full commit SHA; see [The action reference itself](#the-action-reference-itself).
 
 ```yaml
 name: Translate
@@ -123,10 +124,10 @@ The action installs the CLI via `npx` at run time, so the pinned `version` is wh
 
 ### The action reference itself
 
-`verbatra/action@v1` is a moving major-version tag: it is convenient and it keeps picking up fixes, but it is mutable. It also does not exist yet, as noted in the quick start. The security-conscious form is a full 40-character commit SHA, which is immutable and which works today:
+`verbatra/action@v1` is a moving major-version tag: it resolves to the latest v1 release, so it is convenient and it keeps picking up fixes, but it is mutable and the code behind it can change without the reference changing. The security-conscious form is a full 40-character commit SHA, which is immutable and cannot be repointed:
 
 ```yaml
-      - uses: verbatra/action@<commit-sha> # v1.0.0
+      - uses: verbatra/action@1bc4c6573a42f947d48c3657486eb63760b54bb2 # v1.0.0
 ```
 
 Pin every `uses:` reference this way, including `actions/checkout` in the example above. Keep the human-readable version in a trailing comment so the pin stays reviewable, and let Dependabot propose the SHA bumps.

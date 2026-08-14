@@ -21,14 +21,12 @@ is where a fix would ship.
 
 ## Supported versions
 
-This action is not yet published to the GitHub Marketplace and this repository
-carries no tags, so there is no released version line to support today. Until the
-first release is cut, `main` is the only reference, and security fixes land there.
-
-Once releases begin, security fixes will target the latest released major, which
-consumers track through the moving `v1` tag. This is stated without version
-numbers on purpose: a numbered table goes stale the moment a release ships, and a
-security policy that names an outdated line is worse than one that names none.
+Security fixes target the latest released major, which consumers track through
+the moving `v1` tag. If you pin to a full commit SHA instead, which is the
+immutable and recommended form, updating that pin is how you pick up the fix.
+This is stated without version numbers on purpose: a numbered table goes stale
+the moment a release ships, and a security policy that names an outdated line is
+worse than one that names none.
 
 Note that the version of the translation engine an action run executes is not set
 by this repository at all. It is the `version` input in your own workflow, which
