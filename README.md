@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: verbatra/action@v1
         with:
-          version: 0.7.1
+          version: 0.8.0
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -51,7 +51,7 @@ Set `dry-run: true` to report what would change without calling a provider and w
 ```yaml
       - uses: verbatra/action@v1
         with:
-          version: 0.7.1
+          version: 0.8.0
           dry-run: "true"
 ```
 
@@ -65,7 +65,7 @@ This composite action runs `verbatra translate --json`, turns the result into Gi
 
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
-| `version` | yes | none | The `@verbatra/cli` version to run, for example `0.7.1`. Must be an exact semver version; a dist-tag such as `latest`, a range, or a `^`/`~` prefix fails the step. |
+| `version` | yes | none | The `@verbatra/cli` version to run, for example `0.8.0`. Must be an exact semver version; a dist-tag such as `latest`, a range, or a `^`/`~` prefix fails the step. |
 | `config-path` | no | `""` | Explicit config file to load (maps to `--config`). Empty uses the normal config search. |
 | `working-directory` | no | `""` | Directory to resolve config and locale files against (maps to `--cwd`). |
 | `dry-run` | no | `"false"` | Report what would change without calling a provider or writing (maps to `--dry-run`). |
@@ -117,7 +117,7 @@ Two separate things need pinning, and both matter.
 
 ### The `version` input
 
-The `version` input must be pinned to an exact version (for example `version: 0.7.1`) for reproducible, supply-chain-safe CI. Do not use a floating tag such as `latest` and do not use a range. A floating tag pulls whatever is newest at run time, which is non-reproducible and would auto-pull a compromised release. The action enforces this: a `version` that is not an exact semver (a dist-tag, a range, or a `^`/`~` prefix) fails the step before anything is installed.
+The `version` input must be pinned to an exact version (for example `version: 0.8.0`) for reproducible, supply-chain-safe CI. Do not use a floating tag such as `latest` and do not use a range. A floating tag pulls whatever is newest at run time, which is non-reproducible and would auto-pull a compromised release. The action enforces this: a `version` that is not an exact semver (a dist-tag, a range, or a `^`/`~` prefix) fails the step before anything is installed.
 
 The action installs the CLI via `npx` at run time, so the pinned `version` is what governs reproducibility: pinning it pins exactly which CLI release runs.
 
