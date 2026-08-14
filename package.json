@@ -1,6 +1,6 @@
 {
   "name": "@verbatra/action",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "description": "Composite GitHub Action that runs the verbatra CLI in CI and surfaces results as annotations and a job summary",
