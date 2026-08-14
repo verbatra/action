@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/verbatra/action/actions/workflows/ci.yml"><img src="https://github.com/verbatra/action/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <a href="https://www.npmjs.com/package/@verbatra/cli"><img src="https://img.shields.io/npm/v/@verbatra/cli?label=%40verbatra%2Fcli" alt="@verbatra/cli npm version" /></a>
-  <a href="https://github.com/mariokreitz/verbatra"><img src="https://img.shields.io/badge/project-verbatra-blue.svg" alt="Part of the verbatra project" /></a>
+  <a href="https://github.com/verbatra/verbatra"><img src="https://img.shields.io/badge/project-verbatra-blue.svg" alt="Part of the verbatra project" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
@@ -147,11 +147,11 @@ This action is the CI surface of verbatra, not a separate tool. It wraps the sam
 
 | Where | What it is |
 | --- | --- |
-| [github.com/mariokreitz/verbatra](https://github.com/mariokreitz/verbatra) | The main project: the `@verbatra/cli` command-line tool, the `@verbatra/sdk` programmatic API, and the `@verbatra/studio` local dashboard. |
+| [github.com/verbatra/verbatra](https://github.com/verbatra/verbatra) | The main project: the `@verbatra/cli` command-line tool, the `@verbatra/sdk` programmatic API, and the `@verbatra/studio` local dashboard. |
 | [`@verbatra/cli` on npm](https://www.npmjs.com/package/@verbatra/cli) | The package this action installs and runs. |
 | [verbatra.kreitz-webdev.de](https://verbatra.kreitz-webdev.de) | The documentation site, including the [GitHub Action guide](https://verbatra.kreitz-webdev.de/docs/github-action) and the [CLI reference](https://verbatra.kreitz-webdev.de/docs/cli). |
 
-Issues about translation behavior, formats, providers, or the CLI itself belong in the [main repository](https://github.com/mariokreitz/verbatra/issues). Issues about the action's inputs, annotations, or job summary belong [here](https://github.com/verbatra/action/issues).
+Issues about translation behavior, formats, providers, or the CLI itself belong in the [main repository](https://github.com/verbatra/verbatra/issues). Issues about the action's inputs, annotations, or job summary belong [here](https://github.com/verbatra/action/issues).
 
 ## Security
 

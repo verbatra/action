@@ -16,7 +16,7 @@ Report here if the issue is in this repository: `action.yml`, the annotation and
 job-summary scripts, or the workflows. If the issue is in the translation engine
 itself, in `@verbatra/cli`, `@verbatra/sdk`, or `@verbatra/studio`, report it
 against the main project instead
-(https://github.com/mariokreitz/verbatra/security/advisories/new), because that
+(https://github.com/verbatra/verbatra/security/advisories/new), because that
 is where a fix would ship.
 
 ## Supported versions

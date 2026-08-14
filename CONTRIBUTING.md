@@ -5,8 +5,8 @@ GitHub Action that runs the verbatra CLI in CI. It is a small repository on
 purpose: `action.yml`, two plain ESM scripts, their tests, and the workflows.
 
 The translation engine itself lives in the
-[main verbatra repository](https://github.com/mariokreitz/verbatra). Read
-[its contributing guide](https://github.com/mariokreitz/verbatra/blob/main/CONTRIBUTING.md)
+[main verbatra repository](https://github.com/verbatra/verbatra). Read
+[its contributing guide](https://github.com/verbatra/verbatra/blob/main/CONTRIBUTING.md)
 for anything that touches the CLI, the SDK, a provider, or a format adapter.
 
 By participating, you agree to abide by our
@@ -19,8 +19,8 @@ vulnerabilities.
 | Your change | Where it goes |
 | --- | --- |
 | Action inputs, the `action.yml` wiring, annotations, the job summary, the workflows here | This repository |
-| Translation behavior, a format adapter, a provider, CLI flags, config keys | [mariokreitz/verbatra](https://github.com/mariokreitz/verbatra) |
-| The documentation site at verbatra.kreitz-webdev.de | [mariokreitz/verbatra](https://github.com/mariokreitz/verbatra), under `apps/docs` |
+| Translation behavior, a format adapter, a provider, CLI flags, config keys | [verbatra/verbatra](https://github.com/verbatra/verbatra) |
+| The documentation site at verbatra.kreitz-webdev.de | [verbatra/verbatra](https://github.com/verbatra/verbatra), under `apps/docs` |
 
 The action installs `@verbatra/cli` from npm at run time, so an engine fix ships
 by publishing a CLI release and bumping the `version` input, not by changing
