@@ -47,7 +47,10 @@ consumer who runs this action.
   dist-tags such as `latest`, ranges, and `^` or `~` prefixes, and it does so
   before anything is installed. A floating version would resolve at run time to
   whatever is newest, which is not reproducible and would auto-pull a compromised
-  release. A dedicated CI job asserts that this guard still rejects `latest`.
+  release. A dedicated CI job asserts that this guard still rejects `latest`, and
+  that the companion guard on the `command` input still rejects a command outside
+  `translate`, `check`, and `diff`. Both guards report the rejection without
+  echoing the value back.
 - **The lockfile is committed and CI installs are frozen** with `npm ci`, so a
   build resolves the exact dependency tree that was reviewed.
 - **Workflows default to a read-only token.** The CI workflow declares
@@ -75,6 +78,7 @@ deliberately written the same way: it reports that the value is invalid without
 echoing it back, because echoing an untrusted value onto an `::error::` line is
 itself the injection risk.
 
-A `dry-run: "true"` run constructs no provider and therefore needs no key at all,
-which is what makes it safe to run on a pull request from a fork, where no secret
-is available.
+Three run modes construct no provider and therefore need no key at all, which is
+what makes them safe to run on a pull request from a fork, where no secret is
+available: a `dry-run: "true"` translate run, and the read-only `check` and `diff`
+commands. Prefer one of them for any workflow triggered by a fork pull request.
