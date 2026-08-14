@@ -47,7 +47,7 @@ See [Configuration](https://verbatra.kreitz-webdev.de/docs/config-file) for the 
 
 ### Preview without spending
 
-Set `dry-run: true` to report what would change without calling a provider and without writing any file. A dry run never constructs a provider, so it needs no API key at all. It is the cheapest way to gate a pull request on "are the locale files in sync".
+Set `dry-run: true` to report what would change without calling a provider and without writing any file. A dry run never constructs a provider, so it needs no API key at all.
 
 ```yaml
       - uses: verbatra/action@v1
@@ -56,20 +56,65 @@ Set `dry-run: true` to report what would change without calling a provider and w
           dry-run: "true"
 ```
 
+### Gate a pull request
+
+Set `command: check` to fail a pull request whose locale files have drifted from the source. `check` is read-only: it writes nothing, never constructs a provider, and needs no API key or `secrets` wiring at all, so it also runs on pull requests from forks.
+
+```yaml
+name: i18n gate
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: verbatra/action@v1
+        with:
+          version: 0.8.0
+          command: check
+```
+
+The step fails when any locale has missing or stale keys, and the job summary names the drifted locales and their counts, so the reason is visible without opening the log.
+
+## Choosing a command
+
+The `command` input selects which CLI command runs. All three report through the same annotations and job summary; they differ in what they do and what they cost.
+
+| Command | Writes files | Needs an API key | Fails the step when |
+| --- | --- | --- | --- |
+| `translate` (default) | yes | yes | translation fails for a locale |
+| `translate` with `dry-run: "true"` | no | no | translation could not be planned |
+| `check` | no | no | any locale has missing or stale keys |
+| `diff` | no | no | any locale has pending changes |
+
+- Use **`check`** as a pull-request gate. It answers "are the locale files in sync" with per-locale counts of missing, stale, and up-to-date keys. It is the smallest, fastest signal.
+- Use **`diff`** when you want the same gate but need to see *which* keys are pending. It reports the key names per locale, split into missing and changed, which is what you want when a reviewer has to act on the result.
+- Use **`translate --dry-run`** when you want to preview the work a real translation run would do, in translate's own terms (translated, unchanged, integrity-withheld, and provider-failure counts). It models the write path without writing.
+
+Two behaviours worth knowing, both of which the action reports as the CLI does:
+
+- Orphaned keys (present in a target locale but no longer in the source) are reported but are **not** a failure. A locale whose only difference is an orphan exits 0. `diff` lists orphans in the job summary so they stay visible; `check` has no orphan signal at all.
+- `dry-run` applies only to `translate`. Combining it with `check` or `diff` fails the step rather than being silently ignored, because those commands are already read-only and the CLI itself rejects the flag.
+
 ## Description
 
 verbatra is an i18n translation automation tool: it reads your locale files, works out what is missing or has drifted since the source last changed, and fills the gaps through the AI or machine-translation provider you choose, enforcing placeholder and ICU integrity on every result.
 
-This composite action runs `verbatra translate --json`, turns the result into GitHub annotations and a job-summary table, and propagates the CLI exit code so the job fails when translation fails. At run time it installs [`@verbatra/cli`](https://www.npmjs.com/package/@verbatra/cli) at the pinned `version` via `npx` and runs it, so the action carries no bundled CLI of its own and picking a CLI release is a one-line change.
+This composite action runs one of `verbatra translate --json`, `verbatra check --json`, or `verbatra diff --json`, turns the result into GitHub annotations and a job-summary table, and propagates the CLI exit code so the job fails when the command fails. The read-only commands make it a CI gate as well as a translator. At run time it installs [`@verbatra/cli`](https://www.npmjs.com/package/@verbatra/cli) at the pinned `version` via `npx` and runs it, so the action carries no bundled CLI of its own and picking a CLI release is a one-line change.
 
 ## Inputs
 
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
 | `version` | yes | none | The `@verbatra/cli` version to run, for example `0.8.0`. Must be an exact semver version; a dist-tag such as `latest`, a range, or a `^`/`~` prefix fails the step. |
+| `command` | no | `translate` | Which command to run: `translate`, `check`, or `diff`. See [Choosing a command](#choosing-a-command). Any other value fails the step. |
 | `config-path` | no | `""` | Explicit config file to load (maps to `--config`). Empty uses the normal config search. |
 | `working-directory` | no | `""` | Directory to resolve config and locale files against (maps to `--cwd`). |
-| `dry-run` | no | `"false"` | Report what would change without calling a provider or writing (maps to `--dry-run`). |
+| `dry-run` | no | `"false"` | Report what would change without calling a provider or writing (maps to `--dry-run`). Applies only to `translate`; combining it with `check` or `diff` fails the step. |
 | `node-version` | no | `"24"` | Node.js version to set up for running the CLI. |
 
 The action declares no outputs. Its results are delivered as annotations, a job summary, and the job's exit status.
@@ -134,7 +179,11 @@ Pin every `uses:` reference this way, including `actions/checkout` in the exampl
 
 ## Job summary and annotations
 
-The action writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts table, or a whole-run failure heading) and annotates failures via `::error::` workflow commands. On a per-locale failure it emits one annotation per failed locale; on a whole-run failure it emits one annotation built from the CLI error. The job then exits with the CLI exit code, so a failed translation fails the job, and it does so only after the annotations and the summary have been emitted.
+The action writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts table, or a whole-run failure heading) and annotates failures via `::error::` workflow commands. Each command renders its own table: translated and integrity counts for `translate`, missing/stale/up-to-date counts for `check`, and missing/changed/orphaned counts plus the pending key names for `diff`. When the step fails, the summary states why in one line, so the cause is readable without opening the log.
+
+On a per-locale failure it emits one annotation per affected locale; on a whole-run failure it emits one annotation built from the CLI error. The job then exits with the CLI exit code, so a failed run fails the job, and it does so only after the annotations and the summary have been emitted.
+
+Every value taken from CLI output, including locale and key names, is percent-encoded in annotations and escaped in the job summary, so a crafted key cannot forge a workflow command or inject markdown structure.
 
 ## Requirements
 

@@ -196,3 +196,99 @@ describe("annotate.mjs (spawned as a real child process)", () => {
     expect(child.stdout).toContain("[CONFIG_NOT_FOUND] No verbatra configuration found.");
   });
 });
+
+function checkEnvelope(over = {}) {
+  return {
+    ok: true,
+    version: 1,
+    command: "check",
+    result: {
+      inSync: false,
+      locales: [{ locale: "de", missing: 2, stale: 0, upToDate: 0, inSync: false }],
+      ...over,
+    },
+  };
+}
+
+function diffEnvelope() {
+  return {
+    ok: true,
+    version: 1,
+    command: "diff",
+    result: {
+      hasPendingChanges: true,
+      locales: [
+        {
+          locale: "de",
+          missing: ["farewell", "greeting"],
+          changed: [],
+          orphaned: [],
+          hasPendingChanges: true,
+        },
+      ],
+    },
+  };
+}
+
+describe("annotate.mjs: the command argument selects the renderer", () => {
+  it("check drift: exits 1, annotates the drifted locale, writes the check summary", async () => {
+    const summaryFile = fixture("summary.json", JSON.stringify(checkEnvelope()));
+    const errorFile = fixture("error.txt", "");
+    const stepSummaryFile = join(workDir, "step-summary.md");
+
+    const { exitSpy, writeSpy } = await runInProcess(
+      [summaryFile, errorFile, "1", "check"],
+      stepSummaryFile,
+    );
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(writeSpy).toHaveBeenCalledTimes(1);
+    expect(writeSpy.mock.calls[0][0]).toContain("[LOCALE_DRIFTED] 2 missing, 0 stale");
+    const written = readFileSync(stepSummaryFile, "utf8");
+    expect(written).toContain("## verbatra check summary");
+    expect(written).toContain("Step failed: 1 of 1 locales drifted from the source.");
+  });
+
+  it("diff pending: exits 1, annotates the pending locale with its keys", async () => {
+    const summaryFile = fixture("summary.json", JSON.stringify(diffEnvelope()));
+    const errorFile = fixture("error.txt", "");
+    const stepSummaryFile = join(workDir, "step-summary.md");
+
+    const { exitSpy, writeSpy } = await runInProcess(
+      [summaryFile, errorFile, "1", "diff"],
+      stepSummaryFile,
+    );
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(writeSpy.mock.calls[0][0]).toContain("[LOCALE_PENDING] missing: farewell, greeting");
+    expect(readFileSync(stepSummaryFile, "utf8")).toContain("## verbatra diff summary");
+  });
+
+  it("an omitted command argument still renders the translate summary", async () => {
+    const summaryFile = fixture("summary.json", JSON.stringify(successEnvelope()));
+    const errorFile = fixture("error.txt", "");
+    const stepSummaryFile = join(workDir, "step-summary.md");
+
+    const { exitSpy } = await runInProcess([summaryFile, errorFile, "0"], stepSummaryFile);
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(readFileSync(stepSummaryFile, "utf8")).toContain("## verbatra translation summary");
+  });
+
+  it("a check run in sync exits 0 with no annotation, as a green CI gate", async () => {
+    const envelope = checkEnvelope({
+      inSync: true,
+      locales: [{ locale: "de", missing: 0, stale: 0, upToDate: 2, inSync: true }],
+    });
+    const summaryFile = fixture("summary.json", JSON.stringify(envelope));
+    const errorFile = fixture("error.txt", "");
+
+    const { exitSpy, writeSpy } = await runInProcess(
+      [summaryFile, errorFile, "0", "check"],
+      undefined,
+    );
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(writeSpy).not.toHaveBeenCalled();
+  });
+});

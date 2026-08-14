@@ -15,6 +15,15 @@ inputs:
       rejects anything that is not an exact semver (dist-tags, ranges, and ^/~ prefixes all fail the
       step). Required.
     required: true
+  command:
+    description: >-
+      Which verbatra command to run. One of "translate" (default, writes translations),
+      "check" (read-only, exits 1 when any locale has missing or stale keys), or "diff"
+      (read-only, exits 1 when any locale has pending changes). The read-only commands need
+      no provider API key, so they work as a CI gate on a fork pull request. Anything outside
+      that set fails the step.
+    required: false
+    default: translate
   config-path:
     description: Explicit config file to load (maps to --config). Empty uses the normal config search.
     required: false
@@ -24,7 +33,10 @@ inputs:
     required: false
     default: ""
   dry-run:
-    description: Report what would change without calling a provider or writing (maps to --dry-run).
+    description: >-
+      Report what would change without calling a provider or writing (maps to --dry-run). Applies
+      only to the translate command; combining it with check or diff fails the step, because those
+      commands are already read-only and the CLI rejects the flag.
     required: false
     default: "false"
   node-version:
@@ -40,11 +52,12 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
 
-    - name: Run verbatra translate
+    - name: Run verbatra
       id: run
       shell: bash
       env:
         VERBATRA_VERSION: ${{ inputs.version }}
+        COMMAND: ${{ inputs.command }}
         CONFIG_PATH: ${{ inputs.config-path }}
         WORKING_DIRECTORY: ${{ inputs.working-directory }}
         DRY_RUN: ${{ inputs.dry-run }}
@@ -55,10 +68,22 @@ runs:
           echo "::error::the version input must be an exact semver version, e.g. 1.2.3 or 1.2.3-next.0. Dist-tags such as 'latest', ranges, and prefixes such as '^' or '~' are not allowed."
           exit 1
         fi
+        case "$COMMAND" in
+          translate|check|diff) ;;
+          *)
+            echo "::error::the command input must be one of: translate, check, diff."
+            exit 1
+            ;;
+        esac
+        if [ "$DRY_RUN" = "true" ] && [ "$COMMAND" != "translate" ]; then
+          echo "::error::the dry-run input applies only to the translate command. The check and diff commands are already read-only and the CLI rejects --dry-run. Remove dry-run, or set command to translate."
+          exit 1
+        fi
         echo "summary_file=$SUMMARY_FILE" >>"$GITHUB_OUTPUT"
         echo "error_file=$ERROR_FILE" >>"$GITHUB_OUTPUT"
+        echo "command=$COMMAND" >>"$GITHUB_OUTPUT"
         set +e
-        args=(translate --json)
+        args=("$COMMAND" --json)
         if [ -n "$CONFIG_PATH" ]; then args+=(--config "$CONFIG_PATH"); fi
         if [ -n "$WORKING_DIRECTORY" ]; then args+=(--cwd "$WORKING_DIRECTORY"); fi
         if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
@@ -72,4 +97,5 @@ runs:
         SUMMARY_FILE: ${{ steps.run.outputs.summary_file }}
         ERROR_FILE: ${{ steps.run.outputs.error_file }}
         EXIT_CODE: ${{ steps.run.outputs.exit_code }}
-      run: node "$GITHUB_ACTION_PATH/annotate.mjs" "$SUMMARY_FILE" "$ERROR_FILE" "$EXIT_CODE"
+        COMMAND: ${{ steps.run.outputs.command }}
+      run: node "$GITHUB_ACTION_PATH/annotate.mjs" "$SUMMARY_FILE" "$ERROR_FILE" "$EXIT_CODE" "$COMMAND"
