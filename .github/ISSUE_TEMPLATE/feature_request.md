@@ -9,7 +9,7 @@ assignees: ""
 Use this for the action's own surface: a new input, an output, different
 annotations, or a different job summary. Ideas about translation behavior,
 formats, or providers belong in the
-[main repository](https://github.com/mariokreitz/verbatra/issues).
+[main repository](https://github.com/verbatra/verbatra/issues).
 
 ## Problem / motivation
 

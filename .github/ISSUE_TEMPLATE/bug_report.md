@@ -9,7 +9,7 @@ assignees: ""
 Use this for problems with the action itself: its inputs, the `action.yml`
 wiring, the annotations, or the job summary. Problems with translation behavior,
 formats, providers, or the CLI belong in the
-[main repository](https://github.com/mariokreitz/verbatra/issues).
+[main repository](https://github.com/verbatra/verbatra/issues).
 
 ## What happened
 

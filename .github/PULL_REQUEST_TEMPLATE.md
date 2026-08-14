@@ -13,4 +13,4 @@ exercised it.
 - [ ] Tests pass locally (`npm ci && npm test`) and coverage stays at or above 90%
 - [ ] Any new `uses:` reference is pinned to a full commit SHA
 - [ ] Values taken from CLI output are escaped for the position they land in
-- [ ] This belongs here, not in the [main repository](https://github.com/mariokreitz/verbatra)
+- [ ] This belongs here, not in the [main repository](https://github.com/verbatra/verbatra)

@@ -1,10 +1,10 @@
 blank_issues_enabled: false
 contact_links:
   - name: Translation engine, provider, or format bug
-    url: https://github.com/mariokreitz/verbatra/issues/new/choose
+    url: https://github.com/verbatra/verbatra/issues/new/choose
     about: Wrong or missing translations, a provider error, a format adapter problem, or a CLI flag or config key. These live in the main verbatra repository, which is where a fix would ship.
   - name: CLI, SDK, or Studio question
-    url: https://github.com/mariokreitz/verbatra/issues/new/choose
+    url: https://github.com/verbatra/verbatra/issues/new/choose
     about: Anything about @verbatra/cli, @verbatra/sdk, or @verbatra/studio. The action only installs and runs the pinned CLI version.
   - name: Documentation
     url: https://verbatra.kreitz-webdev.de/docs/github-action
