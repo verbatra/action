@@ -66,9 +66,21 @@ cover it with a hostile-input test.
 ## Workflows
 
 `.github/workflows/ci.yml` runs the unit tests on both matrix Node versions and
-self-tests the composite action by running `uses: ./` against the dry-run fixture
-in `.github/fixtures/dry-run`. That fixture run needs no API key, because a dry
-run never constructs a provider.
+self-tests the composite action by running `uses: ./` against two fixtures. No
+step there needs an API key, because a dry run and the read-only commands never
+construct a provider, so the whole job runs on a fork pull request.
+
+- `.github/fixtures/dry-run` has an empty `de.json`, so it is the drifted project:
+  `translate --dry-run` has real work to describe, and `check` and `diff` must fail
+  the step against it.
+- `.github/fixtures/in-sync` has every source key translated, so `check` and `diff`
+  must pass the gate against it. It is what stops a renderer that fails
+  unconditionally from looking correct.
+
+The job also asserts that each input guard rejects rather than silently accepts: an
+unsupported `command`, `dry-run` combined with a read-only command, a floating
+`version`, and a `version` whose second line forges a workflow command. If you add
+a guard to `action.yml`, add the matching rejection step and its assertion.
 
 Every `uses:` reference in this repository is pinned to a full 40-character
 commit SHA with the human-readable version in a trailing comment. Keep it that
@@ -91,7 +103,8 @@ character.
 2. Make your change with tests, and keep it focused.
 3. Run `npm ci && npm test` locally and make sure it passes.
 4. If you changed `action.yml`, say how you exercised it; the self-test job in CI
-   covers the happy path and the semver guard, but not every input.
+   covers all three commands and every input guard, but not every combination of
+   `config-path`, `working-directory`, and `node-version`.
 5. Use Conventional Commit messages.
 6. Open a pull request with the template, describing what changed and how you
    tested it. Keep the pull request scoped and make sure CI is green.

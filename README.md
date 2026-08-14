@@ -5,7 +5,7 @@
 <h1 align="center">verbatra GitHub Action</h1>
 
 <p align="center">
-  Run verbatra i18n translations in CI, annotate failures, and write a job summary, using OpenAI, Anthropic, Gemini, DeepL, or an openai-compatible local or self-hosted model.
+  Run verbatra i18n translations in CI or gate a pull request on locale drift, annotate failures, and write a job summary, using OpenAI, Anthropic, Gemini, DeepL, or an openai-compatible local or self-hosted model.
 </p>
 
 <p align="center">
@@ -15,6 +15,12 @@
   <a href="https://github.com/verbatra/verbatra"><img src="https://img.shields.io/badge/project-verbatra-blue.svg" alt="Part of the verbatra project" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
+
+## What it does
+
+verbatra is an i18n translation automation tool: it reads your locale files, works out what is missing or has drifted since the source last changed, and fills the gaps through the AI or machine-translation provider you choose, enforcing placeholder and ICU integrity on every result.
+
+This composite action runs one of `verbatra translate --json`, `verbatra check --json`, or `verbatra diff --json`, turns the result into GitHub annotations and a job-summary table, and propagates the CLI exit code so the job fails when the command fails. The read-only commands make it a CI gate as well as a translator: `check` and `diff` need no provider API key, so they gate a pull request without spending anything. At run time it installs [`@verbatra/cli`](https://www.npmjs.com/package/@verbatra/cli) at the pinned `version` via `npx` and runs it, so the action carries no bundled CLI of its own and picking a CLI release is a one-line change.
 
 ## Quick start
 
@@ -100,12 +106,6 @@ Two behaviours worth knowing, both of which the action reports as the CLI does:
 - Orphaned keys (present in a target locale but no longer in the source) are reported but are **not** a failure. A locale whose only difference is an orphan exits 0. `diff` lists orphans in the job summary so they stay visible; `check` has no orphan signal at all.
 - `dry-run` applies only to `translate`. Combining it with `check` or `diff` fails the step rather than being silently ignored, because those commands are already read-only and the CLI itself rejects the flag.
 
-## Description
-
-verbatra is an i18n translation automation tool: it reads your locale files, works out what is missing or has drifted since the source last changed, and fills the gaps through the AI or machine-translation provider you choose, enforcing placeholder and ICU integrity on every result.
-
-This composite action runs one of `verbatra translate --json`, `verbatra check --json`, or `verbatra diff --json`, turns the result into GitHub annotations and a job-summary table, and propagates the CLI exit code so the job fails when the command fails. The read-only commands make it a CI gate as well as a translator. At run time it installs [`@verbatra/cli`](https://www.npmjs.com/package/@verbatra/cli) at the pinned `version` via `npx` and runs it, so the action carries no bundled CLI of its own and picking a CLI release is a one-line change.
-
 ## Inputs
 
 | Input | Required | Default | Description |
@@ -172,7 +172,7 @@ The action installs the CLI via `npx` at run time, so the pinned `version` is wh
 `verbatra/action@v1` is a moving major-version tag: it resolves to the latest v1 release, so it is convenient and it keeps picking up fixes, but it is mutable and the code behind it can change without the reference changing. The security-conscious form is a full 40-character commit SHA, which is immutable and cannot be repointed:
 
 ```yaml
-      - uses: verbatra/action@1bc4c6573a42f947d48c3657486eb63760b54bb2 # v1.0.0
+      - uses: verbatra/action@6ec60e6a6bc1a72f27eb8d34b4b67c3e656a6b94 # v1.1.0
 ```
 
 Pin every `uses:` reference this way, including `actions/checkout` in the example above. Keep the human-readable version in a trailing comment so the pin stays reviewable, and let Dependabot propose the SHA bumps.

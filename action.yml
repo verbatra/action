@@ -1,5 +1,5 @@
 name: verbatra
-description: Run verbatra translations in CI, annotate failures, and write a job summary
+description: Run verbatra i18n translations in CI or gate a pull request on locale drift, annotate failures, and write a job summary
 author: Mario Kreitz
 
 branding:
