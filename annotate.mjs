@@ -1,14 +1,19 @@
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { buildReport, parseSummaryJson, resolveExitCode } from "./report.mjs";
 
-const [summaryFile, errorFile, exitCodeArg] = process.argv.slice(2);
+const [summaryFile, errorFile, exitCodeArg, commandArg] = process.argv.slice(2);
 
 const readOrEmpty = (path) => (path && existsSync(path) ? readFileSync(path, "utf8") : "");
 
 const summary = parseSummaryJson(readOrEmpty(summaryFile));
 const stderrText = readOrEmpty(errorFile);
 
-const report = buildReport(summary, resolveExitCode(exitCodeArg), stderrText);
+const report = buildReport(
+  summary,
+  resolveExitCode(exitCodeArg),
+  stderrText,
+  commandArg || "translate",
+);
 
 for (const annotation of report.annotations) {
   process.stdout.write(`${annotation}\n`);

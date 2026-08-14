@@ -58,6 +58,81 @@ jobs:
           working-directory: .github/fixtures/dry-run
           dry-run: "true"
 
+      - name: Run check against the in-sync fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.8.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+
+      - name: Run diff against the in-sync fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.8.0
+          command: diff
+          working-directory: .github/fixtures/in-sync
+
+      - name: Run check against the drifted fixture
+        id: check-drifted
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.8.0
+          command: check
+          working-directory: .github/fixtures/dry-run
+
+      - name: Assert a drifted check failed the step
+        if: steps.check-drifted.outcome != 'failure'
+        run: |
+          echo "::error::check exited 0 against a drifted fixture; the read-only gate does not fail the job on drift"
+          exit 1
+
+      - name: Run diff against the fixture with pending changes
+        id: diff-pending
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.8.0
+          command: diff
+          working-directory: .github/fixtures/dry-run
+
+      - name: Assert a pending diff failed the step
+        if: steps.diff-pending.outcome != 'failure'
+        run: |
+          echo "::error::diff exited 0 against a fixture with pending changes; the read-only gate does not fail the job on pending changes"
+          exit 1
+
+      - name: Reject an unsupported command input
+        id: bad-command
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.8.0
+          command: publish
+          working-directory: .github/fixtures/in-sync
+
+      - name: Assert the unsupported command input was rejected
+        if: steps.bad-command.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted the unsupported command input 'publish'; the allowed-command guard is not working"
+          exit 1
+
+      - name: Reject dry-run combined with a read-only command
+        id: dry-run-with-check
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.8.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          dry-run: "true"
+
+      - name: Assert dry-run combined with check was rejected rather than silently ignored
+        if: steps.dry-run-with-check.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted dry-run together with command: check; the input was silently ignored instead of failing loudly"
+          exit 1
+
       - name: Reject a floating version input
         id: floating
         continue-on-error: true
@@ -99,3 +174,6 @@ jobs:
 
       - name: Assert the version-guard annotation omits the rejected value so a newline inside it cannot forge a second workflow command
         run: bash ./assert-version-guard-annotation.sh
+
+      - name: Assert the command-guard annotation omits the rejected value so a newline inside it cannot forge a second workflow command
+        run: bash ./assert-command-guard-annotation.sh
