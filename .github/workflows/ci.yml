@@ -72,6 +72,20 @@ jobs:
           command: diff
           working-directory: .github/fixtures/in-sync
 
+      - name: Run check against the ts-config fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.8.0
+          command: check
+          working-directory: .github/fixtures/ts-config
+
+      - name: Run check against the ts-config-sdk-import fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.8.0
+          command: check
+          working-directory: .github/fixtures/ts-config-sdk-import
+
       - name: Run check against the drifted fixture
         id: check-drifted
         continue-on-error: true
