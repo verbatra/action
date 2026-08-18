@@ -13,7 +13,9 @@ inputs:
       supply-chain-safe CI; do NOT use a floating tag such as "latest" (it pulls whatever is newest at
       run time, which is non-reproducible and would auto-pull a compromised release). The action
       rejects anything that is not an exact semver (dist-tags, ranges, and ^/~ prefixes all fail the
-      step). Required.
+      step). Must be 0.9.3 or newer: older releases resolve a verbatra.config.ts import of
+      defineConfig from @verbatra/cli or @verbatra/sdk against the config file's own location rather
+      than against the running CLI, and the action no longer works around that. Required.
     required: true
   command:
     description: >-
@@ -25,7 +27,9 @@ inputs:
     required: false
     default: translate
   config-path:
-    description: Explicit config file to load (maps to --config). Empty uses the normal config search.
+    description: >-
+      Explicit config file to load (maps to --config). A relative path resolves against
+      working-directory, not against the repository root. Empty uses the normal config search.
     required: false
     default: ""
   working-directory:
@@ -68,6 +72,29 @@ runs:
           echo "::error::the version input must be an exact semver version, e.g. 1.2.3 or 1.2.3-next.0. Dist-tags such as 'latest', ranges, and prefixes such as '^' or '~' are not allowed."
           exit 1
         fi
+        minimum_version=0.9.3
+        version_core="${VERBATRA_VERSION%%-*}"
+        version_prerelease="${VERBATRA_VERSION#"$version_core"}"
+        IFS=. read -r major minor patch <<<"$version_core"
+        IFS=. read -r min_major min_minor min_patch <<<"$minimum_version"
+        below_minimum=0
+        if [ "$((10#$major))" -lt "$((10#$min_major))" ]; then
+          below_minimum=1
+        elif [ "$((10#$major))" -eq "$((10#$min_major))" ]; then
+          if [ "$((10#$minor))" -lt "$((10#$min_minor))" ]; then
+            below_minimum=1
+          elif [ "$((10#$minor))" -eq "$((10#$min_minor))" ]; then
+            if [ "$((10#$patch))" -lt "$((10#$min_patch))" ]; then
+              below_minimum=1
+            elif [ "$((10#$patch))" -eq "$((10#$min_patch))" ] && [ -n "$version_prerelease" ]; then
+              below_minimum=1
+            fi
+          fi
+        fi
+        if [ "$below_minimum" -ne 0 ]; then
+          echo "::error::the version input must be $minimum_version or newer. Earlier releases resolve a verbatra.config.ts import of defineConfig from '@verbatra/cli' or '@verbatra/sdk' against the config file's own location instead of against the running CLI, so a .ts config either fails to load or silently binds to a different, unpinned copy of those packages. Pin version to $minimum_version or newer."
+          exit 1
+        fi
         case "$COMMAND" in
           translate|check|diff) ;;
           *)
@@ -94,26 +121,6 @@ runs:
         npm install --no-save --silent --prefix "$scratch_dir" \
           "@verbatra/cli@$VERBATRA_VERSION" "@verbatra/sdk@$VERBATRA_VERSION" >"$ERROR_FILE" 2>&1
         if [ $? -ne 0 ]; then
-          : >"$SUMMARY_FILE"
-          echo "exit_code=1" >>"$GITHUB_OUTPUT"
-          exit 0
-        fi
-        link_pinned_package() {
-          local dest="$install_dir/node_modules/@verbatra/$1"
-          local src="$scratch_dir/node_modules/@verbatra/$1"
-          if [ -e "$dest" ] && [ ! -L "$dest" ]; then
-            echo "$dest already exists as a real directory owned by the consumer; refusing to overwrite it with the pinned $1 install" >>"$ERROR_FILE"
-            return 1
-          fi
-          ln -sfn "$src" "$dest" 2>>"$ERROR_FILE"
-          if [ "$(readlink "$dest" 2>/dev/null)" != "$src" ]; then
-            echo "failed to link $dest to the pinned $1 install" >>"$ERROR_FILE"
-            return 1
-          fi
-        }
-        if ! mkdir -p "$install_dir/node_modules/@verbatra" 2>>"$ERROR_FILE" \
-          || ! link_pinned_package cli \
-          || ! link_pinned_package sdk; then
           : >"$SUMMARY_FILE"
           echo "exit_code=1" >>"$GITHUB_OUTPUT"
           exit 0
