@@ -84,7 +84,8 @@ runs:
         echo "command=$COMMAND" >>"$GITHUB_OUTPUT"
         set +e
         install_dir="${WORKING_DIRECTORY:-.}"
-        npm install --no-save --silent --prefix "$install_dir" "@verbatra/cli@$VERBATRA_VERSION" >"$ERROR_FILE" 2>&1
+        npm install --no-save --silent --prefix "$install_dir" \
+          "@verbatra/cli@$VERBATRA_VERSION" "@verbatra/sdk@$VERBATRA_VERSION" >"$ERROR_FILE" 2>&1
         if [ $? -ne 0 ]; then
           : >"$SUMMARY_FILE"
           echo "exit_code=1" >>"$GITHUB_OUTPUT"
@@ -94,7 +95,7 @@ runs:
         if [ -n "$CONFIG_PATH" ]; then args+=(--config "$CONFIG_PATH"); fi
         if [ -n "$WORKING_DIRECTORY" ]; then args+=(--cwd "$WORKING_DIRECTORY"); fi
         if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
-        node "$install_dir/node_modules/.bin/verbatra" "${args[@]}" >"$SUMMARY_FILE" 2>"$ERROR_FILE"
+        npm exec --prefix "$install_dir" -- verbatra "${args[@]}" >"$SUMMARY_FILE" 2>"$ERROR_FILE"
         echo "exit_code=$?" >>"$GITHUB_OUTPUT"
         exit 0
 
