@@ -28,7 +28,7 @@ At run time it installs [`@verbatra/cli`](https://www.npmjs.com/package/@verbatr
 
 Add the action to a workflow. It needs a verbatra config in the repository (for example `verbatra.config.ts` or `.verbatrarc.json`) and the API key of your configured provider, passed from `secrets`:
 
-> The examples below use `verbatra/action@v1`, the moving major tag that tracks the latest v1 release. It is the convenient form. For an immutable pin, replace it with a full commit SHA; see [The action reference itself](#the-action-reference-itself).
+> The examples below use `verbatra/action@v2`, the moving major tag that tracks the latest v2 release. It is the convenient form. For an immutable pin, replace it with a full commit SHA; see [The action reference itself](#the-action-reference-itself).
 
 ```yaml
 name: Translate
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: verbatra/action@v1
+      - uses: verbatra/action@v2
         with:
           version: 0.9.3
         env:
@@ -58,7 +58,7 @@ See [Configuration](https://verbatra.kreitz-webdev.de/docs/config-file) for the 
 Set `dry-run: true` to report what would change without calling a provider and without writing any file. A dry run never constructs a provider, so it needs no API key at all.
 
 ```yaml
-      - uses: verbatra/action@v1
+      - uses: verbatra/action@v2
         with:
           version: 0.9.3
           dry-run: "true"
@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: verbatra/action@v1
+      - uses: verbatra/action@v2
         with:
           version: 0.9.3
           command: check
@@ -173,13 +173,19 @@ The action installs the CLI at run time into a scratch directory of its own and 
 
 ### The action reference itself
 
-`verbatra/action@v1` is a moving major-version tag: it resolves to the latest v1 release, so it is convenient and it keeps picking up fixes, but it is mutable and the code behind it can change without the reference changing. The security-conscious form is a full 40-character commit SHA, which is immutable and cannot be repointed:
+`verbatra/action@v2` is a moving major-version tag: it resolves to the latest v2 release, so it is convenient and it keeps picking up fixes, but it is mutable and the code behind it can change without the reference changing. The security-conscious form is a full 40-character commit SHA, which is immutable and cannot be repointed:
 
 ```yaml
-      - uses: verbatra/action@6ec60e6a6bc1a72f27eb8d34b4b67c3e656a6b94 # v1.1.0
+      - uses: verbatra/action@0288e936b7d995def3c64928b0b9558f3662cbf7 # v2.0.0
 ```
 
 Pin every `uses:` reference this way, including `actions/checkout` in the example above. Keep the human-readable version in a trailing comment so the pin stays reviewable, and let Dependabot propose the SHA bumps.
+
+## Upgrading from v1
+
+`v1` is legacy. `v2` is the only supported, recommended tag, used throughout this README, and every new workflow should use it with `version` pinned to the current `@verbatra/cli` release. `v2` drops the `node_modules` symlink workaround described in [The `version` input](#the-version-input) entirely and adds a floor on the `version` input: `0.9.3` or newer. `v1` never enforced a minimum `version`, so a `version` pin below `0.9.3` fails the step under `v2` where it previously would have silently fallen back to the workaround. That is the only breaking change.
+
+`v1` still resolves, to `v1.1.4`, so an existing `@v1` workflow does not break outright. `v1.1.4` stopped merging the CLI install into your repository's `node_modules` (see [PR #9](https://github.com/verbatra/action/pull/9)), but it still symlinks the pinned packages into that same directory and enforces no minimum `version`, so it still carries real, known risk: a `version` pin left below `0.9.3` on `v1` falls straight back into the resolution bug the symlink was built to paper over. `v2` removes that write into your tree entirely. Existing `@v1` users should migrate to `@v2` rather than treat it as an equally valid alternative; `v1` is kept working only for continuity while that migration happens, not as an ongoing option to opt into.
 
 ## Job summary and annotations
 
