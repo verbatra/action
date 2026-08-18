@@ -1,0 +1,10 @@
+{
+  "name": "pnpm-workspace-protocols-fixture",
+  "private": true,
+  "devDependencies": {
+    "@verbatra/cli": "workspace:*",
+    "@verbatra/sdk": "workspace:*",
+    "react": "catalog:",
+    "typescript": "catalog:"
+  }
+}

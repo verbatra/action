@@ -86,6 +86,13 @@ jobs:
           command: check
           working-directory: .github/fixtures/ts-config-sdk-import
 
+      - name: Run check against the pnpm-workspace-protocols fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.8.0
+          command: check
+          working-directory: .github/fixtures/pnpm-workspace-protocols
+
       - name: Run check against the drifted fixture
         id: check-drifted
         continue-on-error: true
