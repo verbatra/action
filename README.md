@@ -20,7 +20,7 @@
 
 verbatra is an i18n translation automation tool: it reads your locale files, works out what is missing or has drifted since the source last changed, and fills the gaps through the AI or machine-translation provider you choose, enforcing placeholder and ICU integrity on every result.
 
-This composite action runs one of `verbatra translate --json`, `verbatra check --json`, or `verbatra diff --json`, turns the result into GitHub annotations and a job-summary table, and propagates the CLI exit code so the job fails when the command fails. The read-only commands make it a CI gate as well as a translator: `check` and `diff` need no provider API key, so they gate a pull request without spending anything. At run time it installs [`@verbatra/cli`](https://www.npmjs.com/package/@verbatra/cli) at the pinned `version` via `npx` and runs it, so the action carries no bundled CLI of its own and picking a CLI release is a one-line change.
+This composite action runs one of `verbatra translate --json`, `verbatra check --json`, or `verbatra diff --json`, turns the result into GitHub annotations and a job-summary table, and propagates the CLI exit code so the job fails when the command fails. The read-only commands make it a CI gate as well as a translator: `check` and `diff` need no provider API key, so they gate a pull request without spending anything. At run time it installs [`@verbatra/cli`](https://www.npmjs.com/package/@verbatra/cli) at the pinned `version` into `working-directory` and runs it from there, so the action carries no bundled CLI of its own, picking a CLI release is a one-line change, and a `verbatra.config.ts` that imports `defineConfig` from `@verbatra/cli` or `@verbatra/sdk` resolves correctly (an install disconnected from the target project's own directory, like a bare `npx` invocation, cannot satisfy that import).
 
 ## Quick start
 
@@ -165,7 +165,7 @@ Two separate things need pinning, and both matter.
 
 The `version` input must be pinned to an exact version (for example `version: 0.8.0`) for reproducible, supply-chain-safe CI. Do not use a floating tag such as `latest` and do not use a range. A floating tag pulls whatever is newest at run time, which is non-reproducible and would auto-pull a compromised release. The action enforces this: a `version` that is not an exact semver (a dist-tag, a range, or a `^`/`~` prefix) fails the step before anything is installed.
 
-The action installs the CLI via `npx` at run time, so the pinned `version` is what governs reproducibility: pinning it pins exactly which CLI release runs.
+The action installs the CLI at run time (into `working-directory`, or the repository root if unset), so the pinned `version` is what governs reproducibility: pinning it pins exactly which CLI release runs.
 
 ### The action reference itself
 
