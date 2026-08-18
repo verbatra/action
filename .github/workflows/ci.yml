@@ -54,42 +54,42 @@ jobs:
       - name: Run the action against the dry-run fixture
         uses: ./
         with:
-          version: 0.8.0
+          version: 0.9.0
           working-directory: .github/fixtures/dry-run
           dry-run: "true"
 
       - name: Run check against the in-sync fixture, which must pass the gate
         uses: ./
         with:
-          version: 0.8.0
+          version: 0.9.0
           command: check
           working-directory: .github/fixtures/in-sync
 
       - name: Run diff against the in-sync fixture, which must pass the gate
         uses: ./
         with:
-          version: 0.8.0
+          version: 0.9.0
           command: diff
           working-directory: .github/fixtures/in-sync
 
       - name: Run check against the ts-config fixture, which must pass the gate
         uses: ./
         with:
-          version: 0.8.0
+          version: 0.9.0
           command: check
           working-directory: .github/fixtures/ts-config
 
       - name: Run check against the ts-config-sdk-import fixture, which must pass the gate
         uses: ./
         with:
-          version: 0.8.0
+          version: 0.9.0
           command: check
           working-directory: .github/fixtures/ts-config-sdk-import
 
       - name: Run check against the pnpm-workspace-protocols fixture, which must pass the gate
         uses: ./
         with:
-          version: 0.8.0
+          version: 0.9.0
           command: check
           working-directory: .github/fixtures/pnpm-workspace-protocols
 
@@ -98,7 +98,7 @@ jobs:
         continue-on-error: true
         uses: ./
         with:
-          version: 0.8.0
+          version: 0.9.0
           command: check
           working-directory: .github/fixtures/dry-run
 
@@ -113,7 +113,7 @@ jobs:
         continue-on-error: true
         uses: ./
         with:
-          version: 0.8.0
+          version: 0.9.0
           command: diff
           working-directory: .github/fixtures/dry-run
 
@@ -128,7 +128,7 @@ jobs:
         continue-on-error: true
         uses: ./
         with:
-          version: 0.8.0
+          version: 0.9.0
           command: publish
           working-directory: .github/fixtures/in-sync
 
@@ -143,7 +143,7 @@ jobs:
         continue-on-error: true
         uses: ./
         with:
-          version: 0.8.0
+          version: 0.9.0
           command: check
           working-directory: .github/fixtures/in-sync
           dry-run: "true"
