@@ -35,7 +35,7 @@ fi
 
 status=0
 env PATH="$stub_dir:$PATH" \
-  VERBATRA_VERSION="0.8.0" \
+  VERBATRA_VERSION="0.9.3" \
   COMMAND="$forged_command" \
   CONFIG_PATH="" \
   WORKING_DIRECTORY="" \
@@ -49,6 +49,11 @@ failures=0
 
 if [ "$status" -eq 0 ]; then
   echo "FAIL: the guard accepted a command input carrying a forged workflow command"
+  failures=1
+fi
+
+if ! grep -q 'the command input must be one of' "$annotations"; then
+  echo "FAIL: the annotation is not the command guard's, so an earlier guard now fires first and this harness no longer exercises the command guard"
   failures=1
 fi
 

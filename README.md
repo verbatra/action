@@ -20,7 +20,9 @@
 
 verbatra is an i18n translation automation tool: it reads your locale files, works out what is missing or has drifted since the source last changed, and fills the gaps through the AI or machine-translation provider you choose, enforcing placeholder and ICU integrity on every result.
 
-This composite action runs one of `verbatra translate --json`, `verbatra check --json`, or `verbatra diff --json`, turns the result into GitHub annotations and a job-summary table, and propagates the CLI exit code so the job fails when the command fails. The read-only commands make it a CI gate as well as a translator: `check` and `diff` need no provider API key, so they gate a pull request without spending anything. At run time it installs [`@verbatra/cli`](https://www.npmjs.com/package/@verbatra/cli) and [`@verbatra/sdk`](https://www.npmjs.com/package/@verbatra/sdk) at the pinned `version` into `working-directory` and runs the CLI from there, so the action carries no bundled CLI of its own, picking a release is a one-line change, and a `verbatra.config.ts` that imports `defineConfig` from either package resolves the exact pinned version (an install disconnected from the target project's own directory, like a bare `npx` invocation, cannot satisfy that import at all; and installing only `@verbatra/cli` risks resolving a different, pre-existing `@verbatra/sdk` already present in the project instead of the pinned one).
+This composite action runs one of `verbatra translate --json`, `verbatra check --json`, or `verbatra diff --json`, turns the result into GitHub annotations and a job-summary table, and propagates the CLI exit code so the job fails when the command fails. The read-only commands make it a CI gate as well as a translator: `check` and `diff` need no provider API key, so they gate a pull request without spending anything.
+
+At run time it installs [`@verbatra/cli`](https://www.npmjs.com/package/@verbatra/cli) and [`@verbatra/sdk`](https://www.npmjs.com/package/@verbatra/sdk) at the pinned `version` into a temporary scratch directory of its own, then runs that install against your project with `--cwd`. The action carries no bundled CLI, picking a release is a one-line change, and nothing is ever written into your repository's own `node_modules`: not a merged install, not a symlink, not a directory. A `verbatra.config.ts` that does `import { defineConfig } from "@verbatra/cli"` (or from `@verbatra/sdk`) still resolves the exact pinned packages, because since 0.9.3 the SDK points the TypeScript config loader's bare-specifier resolution at the packages installed alongside the SDK that is actually running, rather than at whatever happens to sit next to the config file. That is why `version` must be 0.9.3 or newer; see [The `version` input](#the-version-input).
 
 ## Quick start
 
@@ -44,7 +46,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: verbatra/action@v1
         with:
-          version: 0.9.0
+          version: 0.9.3
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -58,7 +60,7 @@ Set `dry-run: true` to report what would change without calling a provider and w
 ```yaml
       - uses: verbatra/action@v1
         with:
-          version: 0.9.0
+          version: 0.9.3
           dry-run: "true"
 ```
 
@@ -80,7 +82,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: verbatra/action@v1
         with:
-          version: 0.9.0
+          version: 0.9.3
           command: check
 ```
 
@@ -110,9 +112,9 @@ Two behaviours worth knowing, both of which the action reports as the CLI does:
 
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
-| `version` | yes | none | The `@verbatra/cli` version to run, for example `0.9.0`. Must be an exact semver version; a dist-tag such as `latest`, a range, or a `^`/`~` prefix fails the step. |
+| `version` | yes | none | The `@verbatra/cli` version to run, for example `0.9.3`. Must be an exact semver version; a dist-tag such as `latest`, a range, or a `^`/`~` prefix fails the step. Must also be `0.9.3` or newer; an older pin fails the step. See [The `version` input](#the-version-input). |
 | `command` | no | `translate` | Which command to run: `translate`, `check`, or `diff`. See [Choosing a command](#choosing-a-command). Any other value fails the step. |
-| `config-path` | no | `""` | Explicit config file to load (maps to `--config`). Empty uses the normal config search. |
+| `config-path` | no | `""` | Explicit config file to load (maps to `--config`). A relative path resolves against `working-directory`, not against the repository root. Empty uses the normal config search. |
 | `working-directory` | no | `""` | Directory to resolve config and locale files against (maps to `--cwd`). |
 | `dry-run` | no | `"false"` | Report what would change without calling a provider or writing (maps to `--dry-run`). Applies only to `translate`; combining it with `check` or `diff` fails the step. |
 | `node-version` | no | `"24"` | Node.js version to set up for running the CLI. |
@@ -163,9 +165,11 @@ Two separate things need pinning, and both matter.
 
 ### The `version` input
 
-The `version` input must be pinned to an exact version (for example `version: 0.9.0`) for reproducible, supply-chain-safe CI. Do not use a floating tag such as `latest` and do not use a range. A floating tag pulls whatever is newest at run time, which is non-reproducible and would auto-pull a compromised release. The action enforces this: a `version` that is not an exact semver (a dist-tag, a range, or a `^`/`~` prefix) fails the step before anything is installed.
+The `version` input must be pinned to an exact version (for example `version: 0.9.3`) for reproducible, supply-chain-safe CI. Do not use a floating tag such as `latest` and do not use a range. A floating tag pulls whatever is newest at run time, which is non-reproducible and would auto-pull a compromised release. The action enforces this: a `version` that is not an exact semver (a dist-tag, a range, or a `^`/`~` prefix) fails the step before anything is installed.
 
-The action installs the CLI at run time (into `working-directory`, or the repository root if unset), so the pinned `version` is what governs reproducibility: pinning it pins exactly which CLI release runs.
+The action installs the CLI at run time into a scratch directory of its own and runs it against `working-directory` (or the repository root if unset) via `--cwd`, so the pinned `version` is what governs reproducibility: pinning it pins exactly which CLI release runs.
+
+`version` must also be `0.9.3` or newer, and the action rejects an older pin with a message saying so. Before 0.9.3, loading a `verbatra.config.ts` that does `import { defineConfig } from "@verbatra/cli"` (or from `@verbatra/sdk`) resolved that import from the config file's own location, so it either failed outright, when the project has no such dependency installed, or bound silently to a different, unpinned copy of the package. Earlier releases of this action worked around it by symlinking the pinned packages into the consuming repository's `node_modules`, which meant writing into a directory the action does not own. 0.9.3 fixed the resolution in the SDK itself, so the workaround is gone and the floor exists to keep an old pin from silently falling back into the original bug. There is nothing to migrate other than the pinned number: 0.9.2 was never published, so the next release below the floor is 0.9.1.
 
 ### The action reference itself
 
