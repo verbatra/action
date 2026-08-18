@@ -98,9 +98,26 @@ runs:
           echo "exit_code=1" >>"$GITHUB_OUTPUT"
           exit 0
         fi
-        mkdir -p "$install_dir/node_modules/@verbatra"
-        ln -sfn "$scratch_dir/node_modules/@verbatra/cli" "$install_dir/node_modules/@verbatra/cli"
-        ln -sfn "$scratch_dir/node_modules/@verbatra/sdk" "$install_dir/node_modules/@verbatra/sdk"
+        link_pinned_package() {
+          local dest="$install_dir/node_modules/@verbatra/$1"
+          local src="$scratch_dir/node_modules/@verbatra/$1"
+          if [ -e "$dest" ] && [ ! -L "$dest" ]; then
+            echo "$dest already exists as a real directory owned by the consumer; refusing to overwrite it with the pinned $1 install" >>"$ERROR_FILE"
+            return 1
+          fi
+          ln -sfn "$src" "$dest" 2>>"$ERROR_FILE"
+          if [ "$(readlink "$dest" 2>/dev/null)" != "$src" ]; then
+            echo "failed to link $dest to the pinned $1 install" >>"$ERROR_FILE"
+            return 1
+          fi
+        }
+        if ! mkdir -p "$install_dir/node_modules/@verbatra" 2>>"$ERROR_FILE" \
+          || ! link_pinned_package cli \
+          || ! link_pinned_package sdk; then
+          : >"$SUMMARY_FILE"
+          echo "exit_code=1" >>"$GITHUB_OUTPUT"
+          exit 0
+        fi
         args=("$COMMAND" --json --cwd "$install_dir")
         if [ -n "$CONFIG_PATH" ]; then args+=(--config "$CONFIG_PATH"); fi
         if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi

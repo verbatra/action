@@ -102,12 +102,8 @@ jobs:
 
       - name: Assert the action never touched the consumer's own node_modules entries
         run: |
-          if ! grep -q '0.0.0-consumer-owned-do-not-touch' .github/fixtures/preserves-consumer-deps/node_modules/zod/package.json; then
-            echo "::error::the action modified the consumer's own node_modules/zod; this regresses the node_modules merge bug"
-            exit 1
-          fi
-          if ! grep -q '0.0.0-consumer-owned-do-not-touch' .github/fixtures/preserves-consumer-deps/node_modules/debug/package.json; then
-            echo "::error::the action modified the consumer's own node_modules/debug; this regresses the node_modules merge bug"
+          if ! git diff --exit-code HEAD -- .github/fixtures/preserves-consumer-deps/node_modules/zod .github/fixtures/preserves-consumer-deps/node_modules/debug; then
+            echo "::error::the action modified a tracked file under the consumer's own node_modules/zod or node_modules/debug; this regresses the node_modules merge bug"
             exit 1
           fi
 
