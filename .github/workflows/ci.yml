@@ -93,6 +93,20 @@ jobs:
           command: check
           working-directory: .github/fixtures/pnpm-workspace-protocols
 
+      - name: Run check against the preserves-consumer-deps fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.9.0
+          command: check
+          working-directory: .github/fixtures/preserves-consumer-deps
+
+      - name: Assert the action never touched the consumer's own node_modules entries
+        run: |
+          if ! git diff --exit-code HEAD -- .github/fixtures/preserves-consumer-deps/node_modules/zod .github/fixtures/preserves-consumer-deps/node_modules/debug; then
+            echo "::error::the action modified a tracked file under the consumer's own node_modules/zod or node_modules/debug; this regresses the node_modules merge bug"
+            exit 1
+          fi
+
       - name: Run check against the drifted fixture
         id: check-drifted
         continue-on-error: true
