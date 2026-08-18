@@ -1,3 +1,6 @@
 node_modules/
 coverage/
 .turbo/
+
+!.github/fixtures/preserves-consumer-deps/node_modules/
+!.github/fixtures/preserves-consumer-deps/node_modules/**

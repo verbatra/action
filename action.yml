@@ -83,7 +83,13 @@ runs:
         echo "error_file=$ERROR_FILE" >>"$GITHUB_OUTPUT"
         echo "command=$COMMAND" >>"$GITHUB_OUTPUT"
         set +e
-        install_dir="${WORKING_DIRECTORY:-.}"
+        install_dir="$(cd "${WORKING_DIRECTORY:-.}" 2>/dev/null && pwd)"
+        if [ -z "$install_dir" ]; then
+          echo "the working-directory input '$WORKING_DIRECTORY' does not exist" >"$ERROR_FILE"
+          : >"$SUMMARY_FILE"
+          echo "exit_code=1" >>"$GITHUB_OUTPUT"
+          exit 0
+        fi
         scratch_dir="$(mktemp -d)"
         npm install --no-save --silent --prefix "$scratch_dir" \
           "@verbatra/cli@$VERBATRA_VERSION" "@verbatra/sdk@$VERBATRA_VERSION" >"$ERROR_FILE" 2>&1
@@ -92,13 +98,13 @@ runs:
           echo "exit_code=1" >>"$GITHUB_OUTPUT"
           exit 0
         fi
-        mkdir -p "$install_dir/node_modules"
-        cp -a "$scratch_dir/node_modules/." "$install_dir/node_modules/"
-        args=("$COMMAND" --json)
+        mkdir -p "$install_dir/node_modules/@verbatra"
+        ln -sfn "$scratch_dir/node_modules/@verbatra/cli" "$install_dir/node_modules/@verbatra/cli"
+        ln -sfn "$scratch_dir/node_modules/@verbatra/sdk" "$install_dir/node_modules/@verbatra/sdk"
+        args=("$COMMAND" --json --cwd "$install_dir")
         if [ -n "$CONFIG_PATH" ]; then args+=(--config "$CONFIG_PATH"); fi
-        if [ -n "$WORKING_DIRECTORY" ]; then args+=(--cwd "$WORKING_DIRECTORY"); fi
         if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
-        npm exec --prefix "$install_dir" -- verbatra "${args[@]}" >"$SUMMARY_FILE" 2>"$ERROR_FILE"
+        npm exec --prefix "$scratch_dir" -- verbatra "${args[@]}" >"$SUMMARY_FILE" 2>"$ERROR_FILE"
         echo "exit_code=$?" >>"$GITHUB_OUTPUT"
         exit 0
 
