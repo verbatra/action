@@ -66,9 +66,10 @@ cover it with a hostile-input test.
 ## Workflows
 
 `.github/workflows/ci.yml` runs the unit tests on both matrix Node versions and
-self-tests the composite action by running `uses: ./` against two fixtures. No
-step there needs an API key, because a dry run and the read-only commands never
-construct a provider, so the whole job runs on a fork pull request.
+self-tests the composite action by running `uses: ./` against the fixtures in
+`.github/fixtures`. No step there needs an API key, because a dry run and the
+read-only commands never construct a provider, so the whole job runs on a fork
+pull request.
 
 - `.github/fixtures/dry-run` has an empty `de.json`, so it is the drifted project:
   `translate --dry-run` has real work to describe, and `check` and `diff` must fail
@@ -76,11 +77,17 @@ construct a provider, so the whole job runs on a fork pull request.
 - `.github/fixtures/in-sync` has every source key translated, so `check` and `diff`
   must pass the gate against it. It is what stops a renderer that fails
   unconditionally from looking correct.
+- The remaining fixtures each pin one regression: a `verbatra.config.ts`
+  importing `defineConfig` from `@verbatra/cli` and from `@verbatra/sdk`, a
+  `package.json` using pnpm's `workspace:` and `catalog:` protocols, and a
+  consumer's own `node_modules` the action must never write into. Each fixture's
+  README states what it guards.
 
 The job also asserts that each input guard rejects rather than silently accepts: an
 unsupported `command`, `dry-run` combined with a read-only command, a floating
-`version`, and a `version` whose second line forges a workflow command. If you add
-a guard to `action.yml`, add the matching rejection step and its assertion.
+`version`, a `version` below the minimum the action supports, and a `version` whose
+second line forges a workflow command. If you add a guard to `action.yml`, add the
+matching rejection step and its assertion.
 
 Every `uses:` reference in this repository is pinned to a full 40-character
 commit SHA with the human-readable version in a trailing comment. Keep it that
