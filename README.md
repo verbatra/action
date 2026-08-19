@@ -26,7 +26,7 @@ At run time it installs [`@verbatra/cli`](https://www.npmjs.com/package/@verbatr
 
 ## Quick start
 
-Add the action to a workflow. It needs a verbatra config in the repository (for example `verbatra.config.ts` or `.verbatrarc.json`) and the API key of your configured provider, passed from `secrets`:
+Add the action to a workflow. It needs a verbatra config directly inside the resolved `working-directory` (the repository root by default) - for example `verbatra.config.ts` or `.verbatrarc.json` - and the API key of your configured provider, passed from `secrets`:
 
 > The examples below use `verbatra/action@v2`, the moving major tag that tracks the latest v2 release. It is the convenient form. For an immutable pin, replace it with a full commit SHA; see [The action reference itself](#the-action-reference-itself).
 
@@ -114,12 +114,30 @@ Two behaviours worth knowing, both of which the action reports as the CLI does:
 | --- | --- | --- | --- |
 | `version` | yes | none | The `@verbatra/cli` version to run, for example `0.9.3`. Must be an exact semver version; a dist-tag such as `latest`, a range, or a `^`/`~` prefix fails the step. Must also be `0.9.3` or newer; an older pin fails the step. See [The `version` input](#the-version-input). |
 | `command` | no | `translate` | Which command to run: `translate`, `check`, or `diff`. See [Choosing a command](#choosing-a-command). Any other value fails the step. |
-| `config-path` | no | `""` | Explicit config file to load (maps to `--config`). A relative path resolves against `working-directory`, not against the repository root. Empty uses the normal config search. |
-| `working-directory` | no | `""` | Directory to resolve config and locale files against (maps to `--cwd`). |
+| `config-path` | no | `""` | Explicit config file to load (maps to `--config`). A relative path resolves against `working-directory`, not against the repository root. Empty (the default) requires a recognized config file directly inside `working-directory`; the step fails before installing the CLI when none is found there. |
+| `working-directory` | no | `""` | Directory to resolve config and locale files against (maps to `--cwd`). Config lookup is strict, not inherited: it looks only directly inside this directory, never a parent or ancestor, even the repository root. See [Config discovery](#config-discovery). |
 | `dry-run` | no | `"false"` | Report what would change without calling a provider or writing (maps to `--dry-run`). Applies only to `translate`; combining it with `check` or `diff` fails the step. |
 | `node-version` | no | `"24"` | Node.js version to set up for running the CLI. |
 
 The action declares no outputs. Its results are delivered as annotations, a job summary, and the job's exit status.
+
+## Config discovery
+
+When `config-path` is not set, the action requires a recognized verbatra config file (for example `verbatra.config.ts` or `.verbatrarc.json`) to exist directly inside the resolved `working-directory`. If none is found there, the step fails before installing the CLI, naming the exact directory it checked.
+
+This lookup is strict: it never walks up into a parent directory or the repository root, even when an ancestor holds a valid config. Consider a monorepo where the app to translate lives at `apps/docs`:
+
+```yaml
+      with:
+        version: 0.9.3
+        working-directory: apps/docs
+```
+
+Here `apps/docs` is the root a config must exist in; `apps/docs/verbatra.config.ts` (or another recognized config file directly inside `apps/docs`) must exist for this to succeed. A config at the outer repository root does not satisfy the check, even though it is an ancestor of `apps/docs`.
+
+Set `config-path` explicitly to point at a config file outside this convention. A relative `config-path` still resolves against `working-directory`; an absolute `config-path` is used as-is and is not re-resolved against `working-directory`.
+
+This guard ships in the action's next major version. Earlier releases, including `v2`, fall back to the CLI's own upward config search when `working-directory` has no config of its own.
 
 ## Permissions
 
@@ -199,7 +217,7 @@ Every value taken from CLI output, including locale and key names, is percent-en
 
 - A GitHub-hosted or self-hosted runner with `bash` available. The action sets up Node.js itself via `actions/setup-node`, so no Node.js step of your own is required.
 - Network access to the npm registry, to install `@verbatra/cli` at run time.
-- A verbatra config and locale files in the repository.
+- A verbatra config directly inside the resolved `working-directory` (the repository root by default), plus locale files there. See [Config discovery](#config-discovery).
 
 ## The verbatra project
 

@@ -112,6 +112,38 @@ jobs:
             exit 1
           fi
 
+      - name: Run check against the config-guard-present fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.9.3
+          command: check
+          working-directory: .github/fixtures/config-guard-present
+
+      - name: Run check against the config-guard-not-inherited fixture's subdirectory, which has no config of its own
+        id: config-guard-nested
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.9.3
+          command: check
+          working-directory: .github/fixtures/config-guard-not-inherited/child
+
+      - name: Assert the not-inherited config fixture failed the step
+        if: steps.config-guard-nested.outcome != 'failure'
+        run: |
+          echo "::error::working-directory pointed at a subdirectory with no config of its own, but the step succeeded; the guard is inheriting the parent's config instead of enforcing 'strict, not inherited'"
+          exit 1
+
+      - name: Assert the not-inherited config failure names the resolved child directory, not the parent's
+        run: |
+          child_dir="$(cd .github/fixtures/config-guard-not-inherited/child && pwd)"
+          error_file="${{ runner.temp }}/verbatra-error.txt"
+          if ! grep -qF "$child_dir" "$error_file"; then
+            echo "::error::the config guard's failure message did not name the resolved child directory '$child_dir'; check that install_dir is computed from the resolved working-directory, not inherited from the parent"
+            cat "$error_file"
+            exit 1
+          fi
+
       - name: Run check against the drifted fixture
         id: check-drifted
         continue-on-error: true
@@ -232,3 +264,15 @@ jobs:
 
       - name: Assert the command-guard annotation omits the rejected value so a newline inside it cannot forge a second workflow command
         run: bash ./assert-command-guard-annotation.sh
+
+      - name: Assert the config guard passes the resolved config path to the CLI via --config
+        run: bash ./assert-config-guard-passthrough.sh
+
+      - name: Assert an absolute config-path is used as-is, not re-resolved against working-directory
+        run: bash ./assert-config-guard-absolute-path.sh
+
+      - name: Assert the config-path guard's failure is escaped so a newline inside it cannot forge a second workflow command
+        run: bash ./assert-config-guard-hostile-input.sh
+
+      - name: Assert a resolve-config.mjs failure's raw stderr never reaches the step log or survives fail_before_install's overwrite of ERROR_FILE
+        run: bash ./assert-config-guard-stderr-overwritten.sh

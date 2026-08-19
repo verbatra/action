@@ -29,11 +29,21 @@ inputs:
   config-path:
     description: >-
       Explicit config file to load (maps to --config). A relative path resolves against
-      working-directory, not against the repository root. Empty uses the normal config search.
+      working-directory, not against the repository root. Empty (the default) requires a
+      recognized verbatra config file directly inside working-directory; the step fails
+      before installing the CLI when none is found there. The lookup is strict and not
+      inherited: it never walks up into a parent directory or the repository root, even
+      when one of them holds a valid config.
     required: false
     default: ""
   working-directory:
-    description: Directory to resolve config and locale files against (maps to --cwd).
+    description: >-
+      Directory to resolve config and locale files against (maps to --cwd). Config lookup
+      (when config-path is empty) is strict: it looks only directly inside this directory,
+      never a parent or ancestor, even when working-directory is unset and resolves to the
+      repository root. For example, in a monorepo where the app to translate lives at
+      apps/docs, set working-directory to apps/docs and put the config there; a config at
+      the repository root does not satisfy the check.
     required: false
     default: ""
   dry-run:
@@ -117,6 +127,27 @@ runs:
           echo "exit_code=1" >>"$GITHUB_OUTPUT"
           exit 0
         fi
+        fail_before_install() {
+          printf '%s\n' "$1" >"$ERROR_FILE"
+          : >"$SUMMARY_FILE"
+          echo "exit_code=1" >>"$GITHUB_OUTPUT"
+          exit 0
+        }
+        if [ -n "$CONFIG_PATH" ]; then
+          if [[ "$CONFIG_PATH" = /* ]]; then
+            resolved_config="$CONFIG_PATH"
+          else
+            resolved_config="$install_dir/$CONFIG_PATH"
+          fi
+          if [ ! -f "$resolved_config" ]; then
+            fail_before_install "the config-path input '$CONFIG_PATH' resolved to '$resolved_config', which does not exist. config-path and working-directory both control this resolution: a relative config-path resolves against working-directory."
+          fi
+        else
+          resolved_config="$(node "$GITHUB_ACTION_PATH/resolve-config.mjs" "$install_dir" 2>"$ERROR_FILE")"
+          if [ $? -ne 0 ]; then
+            fail_before_install "no recognized verbatra config file was found directly inside '$install_dir', which is resolved from the working-directory input. Add a config file there, or set config-path explicitly."
+          fi
+        fi
         scratch_dir="$(mktemp -d)"
         npm install --no-save --silent --prefix "$scratch_dir" \
           "@verbatra/cli@$VERBATRA_VERSION" "@verbatra/sdk@$VERBATRA_VERSION" >"$ERROR_FILE" 2>&1
@@ -125,8 +156,7 @@ runs:
           echo "exit_code=1" >>"$GITHUB_OUTPUT"
           exit 0
         fi
-        args=("$COMMAND" --json --cwd "$install_dir")
-        if [ -n "$CONFIG_PATH" ]; then args+=(--config "$CONFIG_PATH"); fi
+        args=("$COMMAND" --json --cwd "$install_dir" --config "$resolved_config")
         if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
         npm exec --prefix "$scratch_dir" -- verbatra "${args[@]}" >"$SUMMARY_FILE" 2>"$ERROR_FILE"
         echo "exit_code=$?" >>"$GITHUB_OUTPUT"

@@ -2,7 +2,7 @@
 
 Thanks for your interest in contributing. This repository holds the composite
 GitHub Action that runs the verbatra CLI in CI. It is a small repository on
-purpose: `action.yml`, two plain ESM scripts, their tests, and the workflows.
+purpose: `action.yml`, three plain ESM scripts, their tests, and the workflows.
 
 The translation engine itself lives in the
 [main verbatra repository](https://github.com/verbatra/verbatra). Read
@@ -57,6 +57,20 @@ behavior ships with tests and must keep coverage at or above that threshold.
 into annotations, the job-summary markdown, and the exit status, with no I/O at
 all. Put logic there and test it directly. `annotate.mjs` is the thin I/O shell
 that reads the captured files and writes the results; keep it thin.
+`resolve-config.mjs` locates the verbatra config file directly inside a given
+directory, following the same recognized-filename precedence the CLI's own
+config search uses; it is invoked once from the `id: run` step, before
+`npm install`, so the guard can pass an explicit, already-verified `--config`
+path to the CLI.
+
+The recognized config filenames and their precedence order in
+`resolve-config.mjs` (`SEARCH_PLACES`) are a point-in-time copy of
+`SEARCH_PLACES` in
+[`packages/sdk/src/config/load-config.ts`](https://github.com/verbatra/verbatra/blob/main/packages/sdk/src/config/load-config.ts)
+in the main `verbatra/verbatra` repository, which is the source of truth for
+that list. There is no cross-repo automation keeping the two lists in sync; if
+the SDK's list changes, `resolve-config.mjs` does not update itself. This is
+accepted, documented drift, not a gap to silently discover later.
 
 Values that come from the CLI's output are untrusted. Anything placed into a
 workflow command is percent-encoded, and anything placed into the job summary is
@@ -79,15 +93,19 @@ pull request.
   unconditionally from looking correct.
 - The remaining fixtures each pin one regression: a `verbatra.config.ts`
   importing `defineConfig` from `@verbatra/cli` and from `@verbatra/sdk`, a
-  `package.json` using pnpm's `workspace:` and `catalog:` protocols, and a
-  consumer's own `node_modules` the action must never write into. Each fixture's
-  README states what it guards.
+  `package.json` using pnpm's `workspace:` and `catalog:` protocols, a
+  consumer's own `node_modules` the action must never write into, a config file
+  present directly at the resolved `working-directory` (the pre-flight config
+  guard's positive case), and a subdirectory with its own locales but no config
+  of its own nested under a parent that does have one (the guard's "strict, not
+  inherited" negative case). Each fixture's README states what it guards.
 
 The job also asserts that each input guard rejects rather than silently accepts: an
 unsupported `command`, `dry-run` combined with a read-only command, a floating
-`version`, a `version` below the minimum the action supports, and a `version` whose
-second line forges a workflow command. If you add a guard to `action.yml`, add the
-matching rejection step and its assertion.
+`version`, a `version` below the minimum the action supports, a `version` whose
+second line forges a workflow command, and a `working-directory` with no
+recognized verbatra config file directly inside it. If you add a guard to
+`action.yml`, add the matching rejection step and its assertion.
 
 Every `uses:` reference in this repository is pinned to a full 40-character
 commit SHA with the human-readable version in a trailing comment. Keep it that
