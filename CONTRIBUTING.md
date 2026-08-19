@@ -116,8 +116,9 @@ way; Dependabot proposes the bumps.
 This action does not cut sequential new major versions. Fixes and features land
 as new `v1.x.y` point releases, and the `v1` moving tag is updated to each one
 as it ships. No new major version number is cut for a breaking change; it lands
-in `v1` like everything else. `v2` is a frozen, one-time snapshot kept only for
-continuity, see [Why v1, not v2](README.md#why-v1-not-v2) in the README.
+in `v1` like everything else. An early `v2` prerelease existed briefly and was
+retired in favor of this single-line model; see
+[Versioning](README.md#versioning) in the README.
 
 ## Commit convention
 

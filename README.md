@@ -18,17 +18,13 @@
 
 ## What it does
 
-verbatra is an i18n translation automation tool: it reads your locale files, works out what is missing or has drifted since the source last changed, and fills the gaps through the AI or machine-translation provider you choose, enforcing placeholder and ICU integrity on every result.
+verbatra reads your locale files, works out what is missing or has drifted since the source last changed, and fills the gaps through the AI or machine-translation provider you configure, enforcing placeholder and ICU integrity on every result.
 
-This composite action runs one of `verbatra translate --json`, `verbatra check --json`, or `verbatra diff --json`, turns the result into GitHub annotations and a job-summary table, and propagates the CLI exit code so the job fails when the command fails. The read-only commands make it a CI gate as well as a translator: `check` and `diff` need no provider API key, so they gate a pull request without spending anything.
-
-At run time it installs [`@verbatra/cli`](https://www.npmjs.com/package/@verbatra/cli) and [`@verbatra/sdk`](https://www.npmjs.com/package/@verbatra/sdk) at the pinned `version` into a temporary scratch directory of its own, then runs that install against your project with `--cwd`. The action carries no bundled CLI, picking a release is a one-line change, and nothing is ever written into your repository's own `node_modules`: not a merged install, not a symlink, not a directory. A `verbatra.config.ts` that does `import { defineConfig } from "@verbatra/cli"` (or from `@verbatra/sdk`) still resolves the exact pinned packages, because since 0.9.3 the SDK points the TypeScript config loader's bare-specifier resolution at the packages installed alongside the SDK that is actually running, rather than at whatever happens to sit next to the config file. That is why `version` must be 0.9.3 or newer; see [The `version` input](#the-version-input).
+This action runs `verbatra translate`, `check`, or `diff` (each with `--json`), turns the result into GitHub annotations and a job-summary table, and propagates the CLI's exit code. `check` and `diff` are read-only and need no provider API key, so they gate a pull request without spending anything.
 
 ## Quick start
 
-Add the action to a workflow. It needs a verbatra config directly inside the resolved `working-directory` (the repository root by default) - for example `verbatra.config.ts` or `.verbatrarc.json` - and the API key of your configured provider, passed from `secrets`:
-
-> The examples below use `verbatra/action@v1`, the moving major tag that tracks the latest v1 release, the actively maintained line that receives every fix and feature going forward. It is the convenient form. For an immutable pin, replace it with a full commit SHA; see [The action reference itself](#the-action-reference-itself).
+Add the action to a workflow. `working-directory` (the repository root by default) needs a verbatra config file directly inside it, for example `verbatra.config.ts` or `.verbatrarc.json`, plus the API key of your configured provider, passed from `secrets`:
 
 ```yaml
 name: Translate
@@ -51,7 +47,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-See [Configuration](https://verbatra.kreitz-webdev.de/docs/config-file) for the config reference and [Providers](https://verbatra.kreitz-webdev.de/docs/providers) for the provider options.
+`v1` is the moving tag that tracks the latest release; see [Versioning](#versioning) for an immutable pin. See [Configuration](https://verbatra.kreitz-webdev.de/docs/config-file) and [Providers](https://verbatra.kreitz-webdev.de/docs/providers) for the full reference.
 
 ### Preview without spending
 
@@ -90,7 +86,7 @@ The step fails when any locale has missing or stale keys, and the job summary na
 
 ## Choosing a command
 
-The `command` input selects which CLI command runs. All three report through the same annotations and job summary; they differ in what they do and what they cost.
+The `command` input selects which CLI command runs. All three report through the same annotations and job summary.
 
 | Command | Writes files | Needs an API key | Fails the step when |
 | --- | --- | --- | --- |
@@ -99,20 +95,15 @@ The `command` input selects which CLI command runs. All three report through the
 | `check` | no | no | any locale has missing or stale keys |
 | `diff` | no | no | any locale has pending changes |
 
-- Use **`check`** as a pull-request gate. It answers "are the locale files in sync" with per-locale counts of missing, stale, and up-to-date keys. It is the smallest, fastest signal.
-- Use **`diff`** when you want the same gate but need to see *which* keys are pending. It reports the key names per locale, split into missing and changed, which is what you want when a reviewer has to act on the result.
-- Use **`translate --dry-run`** when you want to preview the work a real translation run would do, in translate's own terms (translated, unchanged, integrity-withheld, and provider-failure counts). It models the write path without writing.
-
-Two behaviours worth knowing, both of which the action reports as the CLI does:
-
-- Orphaned keys (present in a target locale but no longer in the source) are reported but are **not** a failure. A locale whose only difference is an orphan exits 0. `diff` lists orphans in the job summary so they stay visible; `check` has no orphan signal at all.
-- `dry-run` applies only to `translate`. Combining it with `check` or `diff` fails the step rather than being silently ignored, because those commands are already read-only and the CLI itself rejects the flag.
+- Use **`check`** as a pull-request gate: the smallest, fastest signal, with per-locale counts of missing, stale, and up-to-date keys.
+- Use **`diff`** for the same gate when a reviewer needs to see *which* keys are pending. It lists the key names per locale, split into missing and changed, and calls out orphaned keys (present in a target locale but no longer in the source) separately, since those never fail the step on their own.
+- Use **`translate --dry-run`** to preview the work a real run would do, in translate's own terms (translated, unchanged, integrity-withheld, and provider-failure counts), without writing anything.
 
 ## Inputs
 
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
-| `version` | yes | none | The `@verbatra/cli` version to run, for example `0.9.3`. Must be an exact semver version; a dist-tag such as `latest`, a range, or a `^`/`~` prefix fails the step. Must also be `0.9.3` or newer; an older pin fails the step. See [The `version` input](#the-version-input). |
+| `version` | yes | none | The `@verbatra/cli` version to run, for example `0.9.3`. Must be an exact semver version; a dist-tag such as `latest`, a range, or a `^`/`~` prefix fails the step. Must also be `0.9.3` or newer; an older pin fails the step. This is a different number from the action's own `v1` tag above; see [Versioning](#versioning). |
 | `command` | no | `translate` | Which command to run: `translate`, `check`, or `diff`. See [Choosing a command](#choosing-a-command). Any other value fails the step. |
 | `config-path` | no | `""` | Explicit config file to load (maps to `--config`). A relative path resolves against `working-directory`, not against the repository root. Empty (the default) requires a recognized config file directly inside `working-directory`; the step fails before installing the CLI when none is found there. |
 | `working-directory` | no | `""` | Directory to resolve config and locale files against (maps to `--cwd`). Config lookup is strict, not inherited: it looks only directly inside this directory, never a parent or ancestor, even the repository root. See [Config discovery](#config-discovery). |
@@ -123,9 +114,9 @@ The action declares no outputs. Its results are delivered as annotations, a job 
 
 ## Config discovery
 
-When `config-path` is not set, the action requires a recognized verbatra config file (for example `verbatra.config.ts` or `.verbatrarc.json`) to exist directly inside the resolved `working-directory`. If none is found there, the step fails before installing the CLI, naming the exact directory it checked.
+`working-directory` (the repository root by default) must contain a recognized verbatra config file directly inside it, for example `verbatra.config.ts` or `.verbatrarc.json`. The lookup never walks up into a parent directory or the repository root, even when an ancestor holds a valid config, and the action always passes the resolved config to the CLI explicitly with `--config`. If no config is found there, the step fails before installing the CLI, naming the exact directory it checked.
 
-This lookup is strict: it never walks up into a parent directory or the repository root, even when an ancestor holds a valid config. Consider a monorepo where the app to translate lives at `apps/docs`:
+In a monorepo, point `working-directory` at the app you are translating:
 
 ```yaml
       with:
@@ -133,11 +124,9 @@ This lookup is strict: it never walks up into a parent directory or the reposito
         working-directory: apps/docs
 ```
 
-Here `apps/docs` is the root a config must exist in; `apps/docs/verbatra.config.ts` (or another recognized config file directly inside `apps/docs`) must exist for this to succeed. A config at the outer repository root does not satisfy the check, even though it is an ancestor of `apps/docs`.
+Here a recognized config must exist directly inside `apps/docs`; a config at the outer repository root does not satisfy the check. Set `config-path` to load a config from somewhere else instead.
 
-Set `config-path` explicitly to point at a config file outside this convention. A relative `config-path` still resolves against `working-directory`; an absolute `config-path` is used as-is and is not re-resolved against `working-directory`.
-
-This guard ships starting in `v1.2.0`. Earlier `v1.x` releases, and `v2`, fall back to the CLI's own upward config search when `working-directory` has no config of its own.
+See the [GitHub Action guide](https://verbatra.kreitz-webdev.de/docs/github-action) for the full rules, and [config file discovery order](https://verbatra.kreitz-webdev.de/docs/config-file#discovery-order) for every recognized file name.
 
 ## Permissions
 
@@ -152,9 +141,7 @@ If you add steps that commit the translated files back or open a pull request, g
 
 ## Secret wiring
 
-Provider API keys are passed via `env:` from `secrets.*`, for example `ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}`. Keys come only from the environment. A key value is never inlined into YAML and is never passed as an action input. The action and the CLI read keys only from the environment, so a `${{ secrets.* }}` reference in `env:` is the single supported way to provide them.
-
-Each hosted provider reads exactly one variable:
+API keys come only from environment variables, never from action inputs or a literal in YAML. Pass yours via `env:` from `secrets.*`, using the variable your provider reads:
 
 | Provider id | Environment variable |
 | --- | --- |
@@ -162,56 +149,27 @@ Each hosted provider reads exactly one variable:
 | `openai` | `OPENAI_API_KEY` |
 | `gemini` | `GEMINI_API_KEY` |
 | `deepl` | `DEEPL_API_KEY` |
+| `openai-compatible` | `OPENAI_COMPATIBLE_API_KEY`, or the variable named by `provider.options.apiKeyEnvVar`; omit entirely for a server that needs no key |
 
-The `openai-compatible` provider is the exception: it needs no key for a server that requires none, and otherwise reads `OPENAI_COMPATIBLE_API_KEY` or whichever variable its `apiKeyEnvVar` option names. Pass that variable through `env:` the same way.
+Set only the keys your configured provider needs, and each value must be a `${{ secrets.* }}` reference, never a literal. Keys are never echoed: the action's own error messages name the variable but never a value.
 
-Set only the keys your configured provider needs. Each value must be a `${{ secrets.* }}` reference, never a literal:
+## Job summary and annotations
 
-```yaml
-env:
-  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-  DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
-```
+Every run writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts table, or a whole-run failure heading) and annotates failures with `::error::` workflow commands, one per affected locale or one for a whole-run failure. The job then exits with the CLI's own exit code, and it does so only after the annotations and the summary have been emitted.
 
-Keys are never echoed. The action's own error messages name the variable but never include a value, and annotations built from CLI output are percent-encoded so a value cannot break out of a workflow command.
+## Versioning
 
-## Version pinning
-
-Two separate things need pinning, and both matter.
-
-### The `version` input
-
-The `version` input must be pinned to an exact version (for example `version: 0.9.3`) for reproducible, supply-chain-safe CI. Do not use a floating tag such as `latest` and do not use a range. A floating tag pulls whatever is newest at run time, which is non-reproducible and would auto-pull a compromised release. The action enforces this: a `version` that is not an exact semver (a dist-tag, a range, or a `^`/`~` prefix) fails the step before anything is installed.
-
-The action installs the CLI at run time into a scratch directory of its own and runs it against `working-directory` (or the repository root if unset) via `--cwd`, so the pinned `version` is what governs reproducibility: pinning it pins exactly which CLI release runs.
-
-`version` must also be `0.9.3` or newer, and the action rejects an older pin with a message saying so. Before 0.9.3, loading a `verbatra.config.ts` that does `import { defineConfig } from "@verbatra/cli"` (or from `@verbatra/sdk`) resolved that import from the config file's own location, so it either failed outright, when the project has no such dependency installed, or bound silently to a different, unpinned copy of the package. Earlier releases of this action worked around it by symlinking the pinned packages into the consuming repository's `node_modules`, which meant writing into a directory the action does not own. 0.9.3 fixed the resolution in the SDK itself, so the workaround is gone and the floor exists to keep an old pin from silently falling back into the original bug. There is nothing to migrate other than the pinned number: 0.9.2 was never published, so the next release below the floor is 0.9.1.
-
-### The action reference itself
-
-`verbatra/action@v1` is a moving major-version tag: it resolves to the latest v1 release, so it is convenient and it keeps picking up every fix and feature as they ship. It is mutable, though, and the code behind it can change without the reference changing. The security-conscious form is a full 40-character commit SHA, which is immutable and cannot be repointed:
+`v1` is the only maintained line: every fix and feature lands there. Pin `v1` for convenience (it moves to the latest `v1.x.y` release), a specific `v1.x.y` tag for an immutable minor pin, or a full commit SHA for the most reproducible reference:
 
 ```yaml
       - uses: verbatra/action@a6f6dadd405d4691a1fab03097481b4f4421e6a3 # v1.2.0
 ```
 
-Pin every `uses:` reference this way, including `actions/checkout` in the example above. Keep the human-readable version in a trailing comment so the pin stays reviewable, and let Dependabot propose the SHA bumps.
+Keep the human-readable version in a trailing comment so the pin stays reviewable, and let Dependabot propose the SHA bumps.
 
-## Why v1, not v2
+An early `v2` prerelease existed briefly as a one-time breaking snapshot; it has been retired in favor of this single, continuously updated `v1` line.
 
-`v1` is the recommended tag, used throughout this README, even though `v2` is the numerically higher tag and still resolves. `v1` is the actively maintained line: every fix and every feature, including the config-required guard described in [Config discovery](#config-discovery), lands there. `v2` was a one-time snapshot: a single breaking change, dropping the `node_modules` symlink workaround and adding the `0.9.3` version floor on the `version` input (see [PR #10](https://github.com/verbatra/action/pull/10)), cut as its own major version. It is now frozen: it receives no further fixes or features and is kept only so that workflows already pinned to it keep resolving. `v2` is not a starting point for a new workflow.
-
-`v1` already includes everything `v2` has. `v2` is a linear ancestor of the current `v1`: `v1` carries the same `node_modules`-symlink removal and the same `0.9.3` floor that `v2` introduced, plus everything shipped since. Pin `v1`.
-
-## Job summary and annotations
-
-The action writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts table, or a whole-run failure heading) and annotates failures via `::error::` workflow commands. Each command renders its own table: translated and integrity counts for `translate`, missing/stale/up-to-date counts for `check`, and missing/changed/orphaned counts plus the pending key names for `diff`. When the step fails, the summary states why in one line, so the cause is readable without opening the log.
-
-On a per-locale failure it emits one annotation per affected locale; on a whole-run failure it emits one annotation built from the CLI error. The job then exits with the CLI exit code, so a failed run fails the job, and it does so only after the annotations and the summary have been emitted.
-
-Every value taken from CLI output, including locale and key names, is percent-encoded in annotations and escaped in the job summary, so a crafted key cannot forge a workflow command or inject markdown structure.
+Two things need pinning for reproducible, supply-chain-safe CI: the `uses:` reference above, and the `version` input, which must be an exact semver `@verbatra/cli` release (`0.9.3` or newer) rather than a floating tag such as `latest` or a range. The action rejects anything else before installing.
 
 ## Requirements
 
@@ -233,7 +191,7 @@ Issues about translation behavior, formats, providers, or the CLI itself belong 
 
 ## Security
 
-Provider API keys are never accepted as an action input. They are read only from the environment, passed in from `${{ secrets.* }}`, and an error message names the variable but never its value. Every `uses:` reference in this repository is pinned to a full commit SHA, the lockfile is committed and CI installs are frozen, and the `version` input is rejected unless it is an exact semver version. To report a vulnerability, see [SECURITY.md](./SECURITY.md).
+Provider API keys are never accepted as an action input; they are read only from the environment, passed in from `${{ secrets.* }}`. Every `uses:` reference in this repository is pinned to a full commit SHA, the lockfile is committed and CI installs are frozen, and the `version` input is rejected unless it is an exact semver version. Locale and key names taken from CLI output are percent-encoded in annotations and escaped in the job summary, so a crafted key cannot forge a workflow command or inject markdown structure. To report a vulnerability, see [SECURITY.md](./SECURITY.md).
 
 ## Documentation
 
