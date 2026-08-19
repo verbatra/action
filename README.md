@@ -162,7 +162,7 @@ Every run writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts tab
 `v1` is the only maintained line: every fix and feature lands there. Pin `v1` for convenience (it moves to the latest `v1.x.y` release), a specific `v1.x.y` tag for an immutable minor pin, or a full commit SHA for the most reproducible reference:
 
 ```yaml
-      - uses: verbatra/action@a6f6dadd405d4691a1fab03097481b4f4421e6a3 # v1.2.0
+      - uses: verbatra/action@d8276d514f16fa03001be1eda14778c637eb1f0f # v1.2.0
 ```
 
 Keep the human-readable version in a trailing comment so the pin stays reviewable, and let Dependabot propose the SHA bumps.
