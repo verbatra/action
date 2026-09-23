@@ -412,6 +412,8 @@ The hosted documentation site at [verbatra.kreitz-webdev.de](https://verbatra.kr
 
 ## Contributing
 
+The `qa` input and the `needs-human` output are covered by unit tests and by guard self-tests, but not yet by a self-test against a real CLI, because they need `@verbatra/cli` `0.12.0`. Those tests are on the [release checklist](./CONTRIBUTING.md#release-checklist).
+
 Contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md) first; they follow the main project's guidelines, with the differences this repository actually has (npm rather than pnpm, no changesets, no commit hook). Commits here follow Conventional Commits. Run `npm ci && npm test` before opening a pull request; the same suite runs in CI on Node 22.14.0 and 24, alongside a job that runs the action against itself.
 
 ## License
