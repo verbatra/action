@@ -81,6 +81,14 @@ inputs:
     required: false
     default: "24"
 
+outputs:
+  needs-human:
+    description: >-
+      "true" when translate exited 3 because machine translation is disabled by policy
+      (provider none) and keys are left for a human translation, otherwise "false". The step
+      passes in that case, so branch on this output to hand the keys off.
+    value: ${{ steps.annotate.outputs.needs-human }}
+
 runs:
   using: composite
   steps:
@@ -209,6 +217,7 @@ runs:
         exit 0
 
     - name: Annotate and summarize
+      id: annotate
       shell: bash
       env:
         SUMMARY_FILE: ${{ steps.run.outputs.summary_file }}

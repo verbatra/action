@@ -372,7 +372,59 @@ function diffAnnotations(result, exitCode) {
     );
 }
 
+export const NEEDS_HUMAN_EXIT_CODE = 3;
+
+function needsHumanGroups(entry) {
+  return [
+    ["unfilled", entry.unfilled ?? []],
+    ["protected", (entry.protected ?? []).map((item) => item.key)],
+  ].filter(([, keys]) => keys.length > 0);
+}
+
+function needsHumanDetail(entry, escape = String) {
+  const groups = needsHumanGroups(entry);
+  const total = groups.reduce((count, [, keys]) => count + keys.length, 0);
+  if (total === 0) {
+    return null;
+  }
+  const parts = groups.map(([label, keys]) => `${label}: ${previewKeys(keys, escape)}`);
+  const verb = total === 1 ? "key needs" : "keys need";
+  return `${total} ${verb} a human translation (${parts.join("; ")})`;
+}
+
+function needsHumanAnnotations(result) {
+  return result.locales.flatMap((entry) => {
+    const detail = needsHumanDetail(entry);
+    return detail === null
+      ? []
+      : [annotation("warning", `verbatra: ${entry.locale}`, "NEEDS_HUMAN", detail)];
+  });
+}
+
+function needsHumanLines(result) {
+  const locales = result.locales.filter((entry) => needsHumanDetail(entry) !== null);
+  return [
+    "",
+    `Step passed with work left for a person: machine translation is disabled by policy, so translate exited ${NEEDS_HUMAN_EXIT_CODE}. The action reports that as a warning, not a failure. Hand the keys off with verbatra export.`,
+    "",
+    "Needs a human translation:",
+    ...locales.map(
+      (entry) => `- ${escapeMarkdown(entry.locale)}: ${needsHumanDetail(entry, escapeMarkdown)}`,
+    ),
+  ];
+}
+
+function translateMarkdown(result, exitCode) {
+  const markdown = summaryMarkdown(result);
+  return exitCode === NEEDS_HUMAN_EXIT_CODE
+    ? [markdown, ...needsHumanLines(result)].join("\n")
+    : markdown;
+}
+
 function translateAnnotations(result, exitCode) {
+  if (exitCode === NEEDS_HUMAN_EXIT_CODE) {
+    return needsHumanAnnotations(result);
+  }
   if (exitCode !== 1) {
     return [];
   }
@@ -391,7 +443,7 @@ function translateAnnotations(result, exitCode) {
 }
 
 const RENDERERS = {
-  translate: { annotations: translateAnnotations, markdown: (result) => summaryMarkdown(result) },
+  translate: { annotations: translateAnnotations, markdown: translateMarkdown },
   check: { annotations: checkAnnotations, markdown: checkMarkdown },
   diff: { annotations: diffAnnotations, markdown: diffMarkdown },
 };
@@ -436,17 +488,22 @@ function wholeRunMarkdown(exitCode, stderrText) {
 }
 
 export function buildReport(summary, exitCode, stderrText = "", command = "translate") {
-  const exitStatus = exitCode;
-
   if (summary === null) {
     const annotations = exitCode !== 0 ? [wholeRunAnnotation(exitCode, stderrText)] : [];
-    return { annotations, summary: wholeRunMarkdown(exitCode, stderrText), exitStatus };
+    return {
+      annotations,
+      summary: wholeRunMarkdown(exitCode, stderrText),
+      exitStatus: exitCode,
+      needsHuman: false,
+    };
   }
 
   const renderer = resolveRenderer(command);
+  const needsHuman = renderer === RENDERERS.translate && exitCode === NEEDS_HUMAN_EXIT_CODE;
   return {
     annotations: renderer.annotations(summary, exitCode),
     summary: renderer.markdown(summary, exitCode),
-    exitStatus,
+    exitStatus: needsHuman ? 0 : exitCode,
+    needsHuman,
   };
 }
