@@ -53,6 +53,29 @@ inputs:
       commands are already read-only and the CLI rejects the flag.
     required: false
     default: "false"
+  qa:
+    description: >-
+      Also run the quality check over every committed translation (maps to --qa). Applies
+      only to the check command; any other command fails the step. Each finding becomes an
+      annotation: an error for a value the integrity gate would refuse (a broken
+      placeholder, markup, or ICU message), a warning for a review reason. The step fails
+      on any error finding. Needs version 0.12.0 or newer; an older version fails the step
+      before installing the CLI.
+    required: false
+    default: "false"
+  qa-severity:
+    description: >-
+      Lowest quality-check severity to report, "error" or "warning" (maps to --severity).
+      Empty (the default) reports both. Requires qa; the CLI rejects any other value, and
+      rejects "error" together with qa-strict.
+    required: false
+    default: ""
+  qa-strict:
+    description: >-
+      Also fail the step when the quality check reports only warnings (maps to --strict).
+      Requires qa.
+    required: false
+    default: "false"
   node-version:
     description: Node.js version to set up for running the CLI.
     required: false
@@ -75,6 +98,9 @@ runs:
         CONFIG_PATH: ${{ inputs.config-path }}
         WORKING_DIRECTORY: ${{ inputs.working-directory }}
         DRY_RUN: ${{ inputs.dry-run }}
+        QA: ${{ inputs.qa }}
+        QA_SEVERITY: ${{ inputs.qa-severity }}
+        QA_STRICT: ${{ inputs.qa-strict }}
         SUMMARY_FILE: ${{ runner.temp }}/verbatra-summary.json
         ERROR_FILE: ${{ runner.temp }}/verbatra-error.txt
       run: |
@@ -82,26 +108,28 @@ runs:
           echo "::error::the version input must be an exact semver version, e.g. 1.2.3 or 1.2.3-next.0. Dist-tags such as 'latest', ranges, and prefixes such as '^' or '~' are not allowed."
           exit 1
         fi
-        minimum_version=0.9.3
-        version_core="${VERBATRA_VERSION%%-*}"
-        version_prerelease="${VERBATRA_VERSION#"$version_core"}"
-        IFS=. read -r major minor patch <<<"$version_core"
-        IFS=. read -r min_major min_minor min_patch <<<"$minimum_version"
-        below_minimum=0
-        if [ "$((10#$major))" -lt "$((10#$min_major))" ]; then
-          below_minimum=1
-        elif [ "$((10#$major))" -eq "$((10#$min_major))" ]; then
-          if [ "$((10#$minor))" -lt "$((10#$min_minor))" ]; then
-            below_minimum=1
-          elif [ "$((10#$minor))" -eq "$((10#$min_minor))" ]; then
-            if [ "$((10#$patch))" -lt "$((10#$min_patch))" ]; then
-              below_minimum=1
-            elif [ "$((10#$patch))" -eq "$((10#$min_patch))" ] && [ -n "$version_prerelease" ]; then
-              below_minimum=1
-            fi
+        version_below() {
+          local core="${1%%-*}"
+          local prerelease="${1#"$core"}"
+          local major minor patch min_major min_minor min_patch
+          IFS=. read -r major minor patch <<<"$core"
+          IFS=. read -r min_major min_minor min_patch <<<"$2"
+          if [ "$((10#$major))" -ne "$((10#$min_major))" ]; then
+            [ "$((10#$major))" -lt "$((10#$min_major))" ]
+            return
           fi
-        fi
-        if [ "$below_minimum" -ne 0 ]; then
+          if [ "$((10#$minor))" -ne "$((10#$min_minor))" ]; then
+            [ "$((10#$minor))" -lt "$((10#$min_minor))" ]
+            return
+          fi
+          if [ "$((10#$patch))" -ne "$((10#$min_patch))" ]; then
+            [ "$((10#$patch))" -lt "$((10#$min_patch))" ]
+            return
+          fi
+          [ -n "$prerelease" ]
+        }
+        minimum_version=0.9.3
+        if version_below "$VERBATRA_VERSION" "$minimum_version"; then
           echo "::error::the version input must be $minimum_version or newer. Earlier releases resolve a verbatra.config.ts import of defineConfig from '@verbatra/cli' or '@verbatra/sdk' against the config file's own location instead of against the running CLI, so a .ts config either fails to load or silently binds to a different, unpinned copy of those packages. Pin version to $minimum_version or newer."
           exit 1
         fi
@@ -115,6 +143,21 @@ runs:
         if [ "$DRY_RUN" = "true" ] && [ "$COMMAND" != "translate" ]; then
           echo "::error::the dry-run input applies only to the translate command. The check and diff commands are already read-only and the CLI rejects --dry-run. Remove dry-run, or set command to translate."
           exit 1
+        fi
+        if [ "$QA" != "true" ] && { [ -n "$QA_SEVERITY" ] || [ "$QA_STRICT" = "true" ]; }; then
+          echo "::error::the qa-severity and qa-strict inputs apply only to the quality check. Set qa to true, or remove them."
+          exit 1
+        fi
+        if [ "$QA" = "true" ]; then
+          if [ "$COMMAND" != "check" ]; then
+            echo "::error::the qa input applies only to the check command. Set command to check, or remove qa."
+            exit 1
+          fi
+          qa_minimum_version=0.12.0
+          if version_below "$VERBATRA_VERSION" "$qa_minimum_version"; then
+            echo "::error::the qa input needs version $qa_minimum_version or newer, because earlier releases of the CLI have no check --qa. Pin version to $qa_minimum_version or newer, or remove qa."
+            exit 1
+          fi
         fi
         echo "summary_file=$SUMMARY_FILE" >>"$GITHUB_OUTPUT"
         echo "error_file=$ERROR_FILE" >>"$GITHUB_OUTPUT"
@@ -158,6 +201,9 @@ runs:
         fi
         args=("$COMMAND" --json --cwd "$install_dir" --config "$resolved_config")
         if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+        if [ "$QA" = "true" ]; then args+=(--qa); fi
+        if [ -n "$QA_SEVERITY" ]; then args+=(--severity "$QA_SEVERITY"); fi
+        if [ "$QA_STRICT" = "true" ]; then args+=(--strict); fi
         npm exec --prefix "$scratch_dir" -- verbatra "${args[@]}" >"$SUMMARY_FILE" 2>"$ERROR_FILE"
         echo "exit_code=$?" >>"$GITHUB_OUTPUT"
         exit 0

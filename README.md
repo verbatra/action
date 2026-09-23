@@ -188,11 +188,29 @@ The `command` input selects which CLI command runs. All three report through the
 | `translate` (default) | yes | yes | a locale fails, or is written only partially because keys were withheld |
 | `translate` with `dry-run: "true"` | no | no | translation could not be planned |
 | `check` | no | no | any locale has missing or stale keys |
+| `check` with `qa: "true"` | no | no | a locale is out of date, or a committed translation fails the quality check |
 | `diff` | no | no | any locale has pending changes |
 
 - Use **`check`** as a pull-request gate: the smallest, fastest signal, with per-locale counts of missing, stale, and up-to-date keys.
 - Use **`diff`** for the same gate when a reviewer needs to see *which* keys are pending. It lists the key names per locale, split into missing and changed, and calls out orphaned keys (present in a target locale but no longer in the source) separately, since those never fail the step on their own.
+- Add **`qa: "true"`** to `check` to also review every committed translation, including ones typed by hand or merged from another tool. See [Check translation quality](#check-translation-quality).
 - Use **`translate --dry-run`** to preview the work a real run would do, in translate's own terms (translated, unchanged, integrity-withheld, and provider-failure counts), without writing anything.
+
+### Check translation quality
+
+Set `qa: "true"` together with `command: check` to run `verbatra check --qa`, which runs the placeholder, markup, ICU, and plural checks and the review flags over every committed target value, not only over values verbatra writes itself. It is read-only and keyless like `check`, and needs `version` `0.12.0` or newer; the action rejects `qa` with an older version before installing anything.
+
+```yaml
+      - uses: verbatra/action@v1
+        with:
+          version: 0.12.0
+          command: check
+          qa: "true"
+```
+
+Each finding becomes an annotation naming the locale, the key, and the reason: an `::error::` for a value the integrity gate would refuse, and a `::warning::` for a review reason. The job summary adds `qa errors` and `qa warnings` columns and a findings table. The step fails on any error finding. Set `qa-strict: "true"` to fail on warnings too, or `qa-severity: error` to report errors only. The CLI rejects any other `qa-severity` value, and rejects `qa-severity: error` together with `qa-strict`, with exit code 2.
+
+At most 50 findings are annotated, errors first, and the summary table lists the first 100; run `verbatra check --qa` locally for the full list.
 
 ## Inputs
 
@@ -244,6 +262,26 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     # step, because those commands are already read-only and the CLI rejects the flag.
     # Default: false
     dry-run: "false"
+
+    # Also run the quality check over every committed translation (maps to --qa). Applies
+    # only to the check command; any other command fails the step. Each finding becomes an
+    # annotation: an error for a value the integrity gate would refuse (a broken
+    # placeholder, markup, or ICU message), a warning for a review reason. The step fails
+    # on any error finding. Needs version 0.12.0 or newer; an older version fails the step
+    # before installing the CLI.
+    # Default: false
+    qa: "false"
+
+    # Lowest quality-check severity to report, "error" or "warning" (maps to --severity).
+    # Empty (the default) reports both. Requires qa; the CLI rejects any other value, and
+    # rejects "error" together with qa-strict.
+    # Default: ''
+    qa-severity: ''
+
+    # Also fail the step when the quality check reports only warnings (maps to --strict).
+    # Requires qa.
+    # Default: false
+    qa-strict: "false"
 
     # Node.js version to set up for running the CLI.
     # Default: 24
@@ -306,7 +344,7 @@ Set only the keys your configured provider needs, and each value must be a `${{ 
 
 ## Job summary and annotations
 
-Every run writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts table, or a whole-run failure heading) and annotates failures with `::error::` workflow commands, one per affected locale or one for a whole-run failure. The job then exits with the CLI's own exit code, and it does so only after the annotations and the summary have been emitted.
+Every run writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts table, or a whole-run failure heading) and annotates failures with `::error::` workflow commands, one per affected locale or one for a whole-run failure. A `check` with `qa` adds one annotation per quality finding, `::warning::` for a review reason. The job then exits with the CLI's own exit code, and it does so only after the annotations and the summary have been emitted.
 
 For `translate`, a locale's status is `ok`, `partial`, or `failed`. A `partial` locale was written, but some of its keys were withheld by the integrity gate, a provider failure, or the token budget, and the CLI exits 1 for it just as for a failed one. It gets its own `LOCALE_PARTIAL` annotation naming how many keys landed and which were withheld, a `partial` value in the status column, a line under "Partial locales" in the summary, and its own count on the aggregate line (`3 locales: 1 succeeded, 1 partial, 1 failed`). A failed locale with no error of its own, because every key was withheld, names its withheld keys the same way.
 
