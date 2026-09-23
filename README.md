@@ -186,6 +186,7 @@ The `command` input selects which CLI command runs. All three report through the
 | Command | Writes files | Needs an API key | Fails the step when |
 | --- | --- | --- | --- |
 | `translate` (default) | yes | yes | a locale fails, or is written only partially because keys were withheld |
+| `translate` with provider `none` | only translation-memory hits | no | as `translate`; keys left for a person pass the step with a warning (exit 3) |
 | `translate` with `dry-run: "true"` | no | no | translation could not be planned |
 | `check` | no | no | any locale has missing or stale keys |
 | `check` with `qa: "true"` | no | no | a locale is out of date, or a committed translation fails the quality check |
@@ -297,8 +298,27 @@ different number from the action's own `v1` tag in `uses:`; see
 
 ## Outputs
 
-The action declares no outputs: `action.yml` has no `outputs:` block. Results are
-delivered as annotations, a job summary, and the job's exit status.
+| Output | Value |
+| --- | --- |
+| `needs-human` | `"true"` when `translate` exited 3 because machine translation is disabled by policy and keys are left for a person, otherwise `"false"` |
+
+Everything else is delivered as annotations, a job summary, and the job's exit
+status. See [Human-only mode](#human-only-mode).
+
+## Human-only mode
+
+A config with `provider: { id: "none" }` disables machine translation by policy: `translate` fills keys only from exact translation-memory hits, reads no API key, and leaves every other missing or stale key for a person. When it leaves any, the CLI exits `3`. That is not a failure, so the action passes the step, writes one `::warning::` annotation per locale naming the keys (unfilled keys, and protected keys a person has to review), lists them in the job summary, and sets the `needs-human` output to `"true"`. Branch on the output to hand the keys off, for example with `verbatra export`:
+
+```yaml
+      - uses: verbatra/action@v1
+        id: verbatra
+        with:
+          version: 0.12.0
+      - if: steps.verbatra.outputs.needs-human == 'true'
+        run: echo "Some keys need a human translation; see the job summary."
+```
+
+Exit `3` needs `@verbatra/cli` `0.12.0` or newer; an earlier CLI has no human-only mode and never exits `3`. Exit `3` from `check` or `diff` is not reinterpreted and still fails the step, as does a partial or failed locale, which the CLI reports with exit `1` instead.
 
 ## Config discovery
 
@@ -344,7 +364,7 @@ Set only the keys your configured provider needs, and each value must be a `${{ 
 
 ## Job summary and annotations
 
-Every run writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts table, or a whole-run failure heading) and annotates failures with `::error::` workflow commands, one per affected locale or one for a whole-run failure. A `check` with `qa` adds one annotation per quality finding, `::warning::` for a review reason. The job then exits with the CLI's own exit code, and it does so only after the annotations and the summary have been emitted.
+Every run writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts table, or a whole-run failure heading) and annotates failures with `::error::` workflow commands, one per affected locale or one for a whole-run failure. A `check` with `qa` adds one annotation per quality finding, `::warning::` for a review reason. The job then exits with the CLI's own exit code, and it does so only after the annotations and the summary have been emitted. The one exception is `translate` exiting `3`, which passes the step; see [Human-only mode](#human-only-mode).
 
 For `translate`, a locale's status is `ok`, `partial`, or `failed`. A `partial` locale was written, but some of its keys were withheld by the integrity gate, a provider failure, or the token budget, and the CLI exits 1 for it just as for a failed one. It gets its own `LOCALE_PARTIAL` annotation naming how many keys landed and which were withheld, a `partial` value in the status column, a line under "Partial locales" in the summary, and its own count on the aggregate line (`3 locales: 1 succeeded, 1 partial, 1 failed`). A failed locale with no error of its own, because every key was withheld, names its withheld keys the same way.
 
