@@ -35,7 +35,7 @@ describe("buildReport: exit code is a literal pass-through", () => {
     const report = buildReport(s, 0);
     expect(report.annotations).toEqual([]);
     expect(report.exitStatus).toBe(0);
-    expect(report.summary).toContain("1 locales: 1 succeeded, 0 failed");
+    expect(report.summary).toContain("1 locales: 1 succeeded, 0 partial, 0 failed");
     expect(report.summary).toContain("| de | ok | 2 | 1 |");
   });
 
@@ -76,6 +76,146 @@ describe("buildReport: per-locale failure (exit 1): the conjunction criterion", 
     expect(report.annotations[1]).toContain("[SOURCE_INVALID] bad icu");
     expect(report.summary).toContain("Failed locales:");
     expect(report.summary).toContain("- fr: [LOCALE_FAILED] provider 503");
+  });
+});
+
+describe("buildReport: partial locales are reported wherever failed ones are", () => {
+  function partialRun() {
+    return summary({
+      locales: [
+        locale({ locale: "de", translated: ["a"] }),
+        locale({
+          locale: "fr",
+          status: "partial",
+          translated: ["a", "b"],
+          integrityMismatches: ["c"],
+          providerFailures: ["d", "e"],
+          budgetWithheld: ["f"],
+        }),
+      ],
+      succeeded: ["de"],
+      partial: ["fr"],
+    });
+  }
+
+  it("a run whose only problem is a partial locale annotates it instead of emitting nothing", () => {
+    const report = buildReport(partialRun(), 1);
+    expect(report.exitStatus).toBe(1);
+    expect(report.annotations).toEqual([
+      "::error title=verbatra%3A fr::[LOCALE_PARTIAL] 2 translated, 4 keys withheld (integrity: c; provider failure: d, e; budget: f)",
+    ]);
+  });
+
+  it("the status column shows partial rather than ok", () => {
+    const report = buildReport(partialRun(), 1);
+    expect(report.summary).toContain("| fr | partial | 2 | 0 | 0 | 0 | 1 | 2 | 0 |");
+    expect(report.summary).toContain("| de | ok | 1 |");
+  });
+
+  it("the aggregate line counts partial locales between succeeded and failed", () => {
+    const report = buildReport(partialRun(), 1);
+    expect(report.summary).toContain("2 locales: 1 succeeded, 1 partial, 0 failed");
+  });
+
+  it("the summary lists each partial locale with its withheld keys", () => {
+    const report = buildReport(partialRun(), 1);
+    expect(report.summary).toContain(
+      [
+        "Partial locales, written with keys still missing:",
+        "- fr: 2 translated, 4 keys withheld (integrity: c; provider failure: d, e; budget: f)",
+      ].join("\n"),
+    );
+    expect(report.summary).not.toContain("Failed locales:");
+  });
+
+  it("partial and failed locales are annotated side by side, in locale order", () => {
+    const s = summary({
+      locales: [
+        locale({ locale: "fr", status: "partial", translated: ["a"], providerFailures: ["b"] }),
+        locale({
+          locale: "es",
+          status: "failed",
+          error: { code: "LOCALE_FAILED", message: "provider 503" },
+        }),
+      ],
+      partial: ["fr"],
+      failed: ["es"],
+    });
+    const report = buildReport(s, 1);
+    expect(report.annotations).toEqual([
+      "::error title=verbatra%3A fr::[LOCALE_PARTIAL] 1 translated, 1 key withheld (provider failure: b)",
+      "::error title=verbatra%3A es::[LOCALE_FAILED] provider 503",
+    ]);
+    expect(report.summary).toContain("2 locales: 0 succeeded, 1 partial, 1 failed");
+  });
+
+  it("a failed locale with nothing thrown names its withheld keys instead of a bare 'locale failed'", () => {
+    const s = summary({
+      locales: [locale({ locale: "fr", status: "failed", integrityMismatches: ["a", "b"] })],
+      failed: ["fr"],
+    });
+    const report = buildReport(s, 1);
+    expect(report.annotations).toEqual([
+      "::error title=verbatra%3A fr::[LOCALE_FAILED] 2 keys withheld (integrity: a, b)",
+    ]);
+    expect(report.summary).toContain("- fr: [LOCALE_FAILED] 2 keys withheld (integrity: a, b)");
+  });
+
+  it("a long withheld list is capped in the annotation", () => {
+    const keys = Array.from({ length: 12 }, (_, index) => `k${index}`);
+    const s = summary({
+      locales: [locale({ locale: "fr", status: "partial", providerFailures: keys })],
+      partial: ["fr"],
+    });
+    const [annotation] = buildReport(s, 1).annotations;
+    expect(annotation).toContain("12 keys withheld (provider failure: k0,");
+    expect(annotation).toContain("k9, and 2 more)");
+    expect(annotation).not.toContain("k10");
+  });
+
+  it("a partial locale reporting no withheld key still says so rather than rendering nothing", () => {
+    const s = summary({
+      locales: [locale({ locale: "fr", status: "partial", translated: ["a"] })],
+      partial: ["fr"],
+    });
+    const report = buildReport(s, 1);
+    expect(report.annotations).toEqual([
+      "::error title=verbatra%3A fr::[LOCALE_PARTIAL] 1 translated, 0 keys withheld",
+    ]);
+  });
+
+  it("a summary from a CLI that predates the partial list still renders a zero partial count", () => {
+    const s = summary({ locales: [locale()], succeeded: ["de"] });
+    delete s.partial;
+    expect(buildReport(s, 0).summary).toContain("1 locales: 1 succeeded, 0 partial, 0 failed");
+  });
+
+  it("a partial locale on a clean exit is shown in the table but not annotated", () => {
+    const report = buildReport(partialRun(), 0);
+    expect(report.annotations).toEqual([]);
+    expect(report.summary).toContain("| fr | partial |");
+  });
+
+  it("an untrusted withheld key cannot break out of the summary list or forge a workflow command", () => {
+    const s = summary({
+      locales: [
+        locale({
+          locale: "fr",
+          status: "partial",
+          translated: ["a"],
+          providerFailures: ["x|y\n## Forged heading\n::stop-commands::t"],
+        }),
+      ],
+      partial: ["fr"],
+    });
+    const report = buildReport(s, 1);
+    expect(report.summary.split("\n").filter((line) => line.startsWith("#"))).toEqual([
+      "## verbatra translation summary",
+    ]);
+    expect(report.summary).toContain("x\\|y ## Forged heading ::stop-commands::t");
+    expect(report.annotations).toHaveLength(1);
+    expect(report.annotations[0]).not.toContain("\n");
+    expect(report.annotations[0]).toContain("x|y%0A## Forged heading%0A::stop-commands::t");
   });
 });
 

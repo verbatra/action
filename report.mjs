@@ -51,15 +51,46 @@ export function resolveExitCode(exitCodeArg) {
   return Number.isNaN(parsed) ? WIRING_FAILURE_EXIT_CODE : parsed;
 }
 
+const KEY_PREVIEW_LIMIT = 10;
+
+function previewKeys(keys, escape) {
+  const shown = keys.slice(0, KEY_PREVIEW_LIMIT).map((key) => escape(key));
+  const remaining = keys.length - shown.length;
+  return remaining > 0 ? `${shown.join(", ")}, and ${remaining} more` : shown.join(", ");
+}
+
+function withheldGroups(entry) {
+  return [
+    ["integrity", entry.integrityMismatches],
+    ["provider failure", entry.providerFailures],
+    ["budget", entry.budgetWithheld ?? []],
+  ].filter(([, keys]) => keys.length > 0);
+}
+
+function withheldDetail(entry, escape = String) {
+  const groups = withheldGroups(entry);
+  const total = groups.reduce((count, [, keys]) => count + keys.length, 0);
+  if (total === 0) {
+    return null;
+  }
+  const parts = groups.map(([label, keys]) => `${label}: ${previewKeys(keys, escape)}`);
+  return `${total} ${total === 1 ? "key" : "keys"} withheld (${parts.join("; ")})`;
+}
+
 function resolveLocaleError(entry) {
   return {
     code: entry.error?.code ?? "LOCALE_FAILED",
-    message: entry.error?.message ?? "locale failed",
+    message: entry.error?.message ?? withheldDetail(entry) ?? "locale failed",
   };
 }
 
+function partialDetail(entry, escape = String) {
+  const withheld = withheldDetail(entry, escape) ?? "0 keys withheld";
+  return `${entry.translated.length} translated, ${withheld}`;
+}
+
 function countsRow(entry) {
-  const status = entry.status === "failed" ? "failed" : "ok";
+  const status = entry.status === "failed" || entry.status === "partial" ? entry.status : "ok";
   return `| ${escapeMarkdown(entry.locale)} | ${status} | ${entry.translated.length} | ${entry.unchanged.length} | ${entry.orphaned.length} | ${entry.invalidIcuSource.length} | ${entry.integrityMismatches.length} | ${entry.providerFailures.length} | ${entry.notices.length} |`;
 }
 
@@ -71,10 +102,19 @@ function summaryMarkdown(summary) {
     "| locale | status | translated | unchanged | orphaned | invalid ICU | integrity withheld | provider failures | notices |";
   const sep = "| --- | --- | --- | --- | --- | --- | --- | --- | --- |";
   const rows = summary.locales.map(countsRow);
-  const aggregate = `${summary.locales.length} locales: ${summary.succeeded.length} succeeded, ${summary.failed.length} failed${
+  const partialCount = (summary.partial ?? []).length;
+  const aggregate = `${summary.locales.length} locales: ${summary.succeeded.length} succeeded, ${partialCount} partial, ${summary.failed.length} failed${
     summary.dryRun ? " (dry run: nothing written)" : ""
   }`;
   const lines = [heading, "", head, sep, ...rows, "", aggregate];
+
+  const partialLocales = summary.locales.filter((locale) => locale.status === "partial");
+  if (partialLocales.length > 0) {
+    lines.push("", "Partial locales, written with keys still missing:");
+    for (const locale of partialLocales) {
+      lines.push(`- ${escapeMarkdown(locale.locale)}: ${partialDetail(locale, escapeMarkdown)}`);
+    }
+  }
 
   const failedLocales = summary.locales.filter((locale) => locale.status === "failed");
   if (failedLocales.length > 0) {
@@ -87,14 +127,6 @@ function summaryMarkdown(summary) {
     }
   }
   return lines.join("\n");
-}
-
-const KEY_PREVIEW_LIMIT = 10;
-
-function previewKeys(keys, escape) {
-  const shown = keys.slice(0, KEY_PREVIEW_LIMIT).map((key) => escape(key));
-  const remaining = keys.length - shown.length;
-  return remaining > 0 ? `${shown.join(", ")}, and ${remaining} more` : shown.join(", ");
 }
 
 function driftDetail(entry) {
@@ -212,12 +244,18 @@ function translateAnnotations(result, exitCode) {
   if (exitCode !== 1) {
     return [];
   }
-  return result.locales
-    .filter((entry) => entry.status === "failed")
-    .map((entry) => {
+  return result.locales.flatMap((entry) => {
+    if (entry.status === "failed") {
       const { code, message } = resolveLocaleError(entry);
-      return errorAnnotation(`verbatra: ${entry.locale}`, code, message);
-    });
+      return [errorAnnotation(`verbatra: ${entry.locale}`, code, message)];
+    }
+    if (entry.status === "partial") {
+      return [
+        errorAnnotation(`verbatra: ${entry.locale}`, "LOCALE_PARTIAL", partialDetail(entry)),
+      ];
+    }
+    return [];
+  });
 }
 
 const RENDERERS = {
