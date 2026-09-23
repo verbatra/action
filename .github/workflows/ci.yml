@@ -38,6 +38,8 @@ jobs:
         run: npm ci
       - name: Run the test suite with coverage
         run: npm test
+      - name: Check the README input reference matches action.yml
+        run: npm run docs:usage:check
 
   self-test:
     name: Self-test the composite action
