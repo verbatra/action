@@ -1253,6 +1253,25 @@ describe("buildReport: translate exit 3 is work for a person, not a failure", ()
     expect(report.annotations).toEqual([]);
   });
 
+  it("skips the list heading when no locale names a key left for a person", () => {
+    const text = buildReport(summary({ locales: [locale()] }), 3, "", "translate").summary;
+    expect(text).toContain("Step passed with work left for a person");
+    expect(text).not.toContain("Needs a human translation:");
+  });
+
+  it("needsHuman is keyed on the translate command itself, not on the translate fallback", () => {
+    const report = buildReport(
+      summary({ locales: [locale({ unfilled: ["a"] })] }),
+      3,
+      "",
+      "publish",
+    );
+    expect(report.needsHuman).toBe(false);
+    expect(report.exitStatus).toBe(3);
+    expect(report.annotations).toEqual([]);
+    expect(report.summary).not.toContain("Step passed");
+  });
+
   it("an untrusted key cannot forge a workflow command or break the list", () => {
     const s = summary({
       locales: [locale({ locale: "de", unfilled: ["x|y\n::stop-commands::z"] })],

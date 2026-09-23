@@ -397,11 +397,12 @@ function needsHumanAnnotations(result) {
   });
 }
 
-function needsHumanLines(result) {
+function needsHumanListLines(result) {
   const locales = result.locales.filter((entry) => needsHumanDetail(entry) !== null);
+  if (locales.length === 0) {
+    return [];
+  }
   return [
-    "",
-    `Step passed with work left for a person: machine translation is disabled by policy, so translate exited ${NEEDS_HUMAN_EXIT_CODE}. The action reports that as a warning, not a failure. Hand the keys off with verbatra export.`,
     "",
     "Needs a human translation:",
     ...locales.map(
@@ -410,15 +411,23 @@ function needsHumanLines(result) {
   ];
 }
 
-function translateMarkdown(result, exitCode) {
+function needsHumanLines(result) {
+  return [
+    "",
+    `Step passed with work left for a person: machine translation is disabled by policy, so translate exited ${NEEDS_HUMAN_EXIT_CODE}. The action reports that as a warning, not a failure. Hand the keys off with verbatra export.`,
+    ...needsHumanListLines(result),
+  ];
+}
+
+function translateMarkdown(result, _exitCode, options = {}) {
   const markdown = summaryMarkdown(result);
-  return exitCode === NEEDS_HUMAN_EXIT_CODE
+  return options.needsHuman === true
     ? [markdown, ...needsHumanLines(result)].join("\n")
     : markdown;
 }
 
-function translateAnnotations(result, exitCode) {
-  if (exitCode === NEEDS_HUMAN_EXIT_CODE) {
+function translateAnnotations(result, exitCode, options = {}) {
+  if (options.needsHuman === true) {
     return needsHumanAnnotations(result);
   }
   if (exitCode !== 1) {
@@ -531,10 +540,11 @@ export function buildReport(
   }
 
   const renderer = resolveRenderer(command);
-  const needsHuman = renderer === RENDERERS.translate && exitCode === NEEDS_HUMAN_EXIT_CODE;
+  const needsHuman = command === "translate" && exitCode === NEEDS_HUMAN_EXIT_CODE;
+  const renderOptions = { ...options, needsHuman };
   return {
-    annotations: capAnnotations(renderer.annotations(summary, exitCode)),
-    summary: renderer.markdown(summary, exitCode, options),
+    annotations: capAnnotations(renderer.annotations(summary, exitCode, renderOptions)),
+    summary: renderer.markdown(summary, exitCode, renderOptions),
     exitStatus: needsHuman ? 0 : exitCode,
     needsHuman,
   };
