@@ -66,6 +66,7 @@ let workDir;
 let importCase = 0;
 let originalArgv;
 let originalGithubStepSummary;
+let originalGithubOutput;
 
 function fixture(name, content) {
   const path = join(workDir, name);
@@ -73,12 +74,17 @@ function fixture(name, content) {
   return path;
 }
 
-async function runInProcess(argv, stepSummaryPath) {
+async function runInProcess(argv, stepSummaryPath, outputPath) {
   process.argv = ["node", scriptPath, ...argv];
   if (stepSummaryPath === undefined) {
     delete process.env.GITHUB_STEP_SUMMARY;
   } else {
     process.env.GITHUB_STEP_SUMMARY = stepSummaryPath;
+  }
+  if (outputPath === undefined) {
+    delete process.env.GITHUB_OUTPUT;
+  } else {
+    process.env.GITHUB_OUTPUT = outputPath;
   }
 
   const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => undefined);
@@ -98,6 +104,7 @@ beforeEach(() => {
   workDir = mkdtempSync(join(tmpdir(), "verbatra-annotate-"));
   originalArgv = process.argv;
   originalGithubStepSummary = process.env.GITHUB_STEP_SUMMARY;
+  originalGithubOutput = process.env.GITHUB_OUTPUT;
 });
 
 afterEach(() => {
@@ -108,6 +115,11 @@ afterEach(() => {
     delete process.env.GITHUB_STEP_SUMMARY;
   } else {
     process.env.GITHUB_STEP_SUMMARY = originalGithubStepSummary;
+  }
+  if (originalGithubOutput === undefined) {
+    delete process.env.GITHUB_OUTPUT;
+  } else {
+    process.env.GITHUB_OUTPUT = originalGithubOutput;
   }
 });
 
@@ -165,6 +177,59 @@ describe("annotate.mjs (in-process)", () => {
     const { exitSpy } = await runInProcess([summaryFile, errorFile, "not-a-number"], undefined);
 
     expect(exitSpy).toHaveBeenCalledWith(2);
+  });
+});
+
+function needsHumanEnvelope() {
+  const envelope = successEnvelope();
+  envelope.result.locales[0].translated = [];
+  envelope.result.locales[0].unfilled = ["farewell", "title"];
+  envelope.result.locales[0].protected = [{ key: "legal", reason: "human-edited" }];
+  return envelope;
+}
+
+describe("annotate.mjs: translate exit 3 means a person has work, not a failure", () => {
+  it("exits 0, warns per locale, and sets the needs-human output to true", async () => {
+    const summaryFile = fixture("summary.json", JSON.stringify(needsHumanEnvelope()));
+    const errorFile = fixture("error.txt", "");
+    const outputFile = fixture("output.txt", "");
+
+    const { exitSpy, writeSpy } = await runInProcess(
+      [summaryFile, errorFile, "3", "translate"],
+      undefined,
+      outputFile,
+    );
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(writeSpy).toHaveBeenCalledTimes(1);
+    expect(writeSpy.mock.calls[0][0]).toBe(
+      "::warning title=verbatra%3A de::[NEEDS_HUMAN] 3 keys need a human translation (unfilled: farewell, title; protected: legal)\n",
+    );
+    expect(readFileSync(outputFile, "utf8")).toBe("needs-human=true\n");
+  });
+
+  it("sets the needs-human output to false on any other outcome", async () => {
+    const summaryFile = fixture("summary.json", JSON.stringify(successEnvelope()));
+    const errorFile = fixture("error.txt", "");
+    const outputFile = fixture("output.txt", "");
+
+    const { exitSpy } = await runInProcess([summaryFile, errorFile, "0"], undefined, outputFile);
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(readFileSync(outputFile, "utf8")).toBe("needs-human=false\n");
+  });
+
+  it("the spawned process exits 0 on translate exit 3, so the step passes", () => {
+    const summaryFile = fixture("summary.json", JSON.stringify(needsHumanEnvelope()));
+    const errorFile = fixture("error.txt", "");
+    const outputFile = fixture("output.txt", "");
+
+    const child = runOutOfProcess([summaryFile, errorFile, "3", "translate"], {
+      GITHUB_OUTPUT: outputFile,
+    });
+
+    expect(child.status).toBe(0);
+    expect(readFileSync(outputFile, "utf8")).toBe("needs-human=true\n");
   });
 });
 

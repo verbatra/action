@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildReport,
   extractCliError,
+  NEEDS_HUMAN_EXIT_CODE,
   parseSummaryJson,
   resolveExitCode,
   WIRING_FAILURE_EXIT_CODE,
@@ -1119,5 +1120,85 @@ describe("buildReport: check --qa findings", () => {
     expect(report.summary).toContain(
       "| de:1 | k\\|1 ::stop-commands::x | error | icu:x,y | a\\|b ## Forged heading |",
     );
+  });
+});
+
+describe("buildReport: translate exit 3 is work for a person, not a failure", () => {
+  function humanOnlyRun() {
+    return summary({
+      locales: [
+        locale({ locale: "de", unfilled: ["a", "b"], protected: [], unchanged: ["c"] }),
+        locale({ locale: "fr", unfilled: [], protected: [{ key: "legal", reason: "pinned" }] }),
+        locale({ locale: "es", unfilled: [], protected: [] }),
+      ],
+      succeeded: ["de", "fr", "es"],
+    });
+  }
+
+  it("passes the step, reports needsHuman, and warns once per locale with keys left", () => {
+    const report = buildReport(humanOnlyRun(), NEEDS_HUMAN_EXIT_CODE, "", "translate");
+    expect(report.exitStatus).toBe(0);
+    expect(report.needsHuman).toBe(true);
+    expect(report.annotations).toEqual([
+      "::warning title=verbatra%3A de::[NEEDS_HUMAN] 2 keys need a human translation (unfilled: a, b)",
+      "::warning title=verbatra%3A fr::[NEEDS_HUMAN] 1 key needs a human translation (protected: legal)",
+    ]);
+  });
+
+  it("the summary says why the step passed and lists what is left for a person", () => {
+    const text = buildReport(humanOnlyRun(), 3, "", "translate").summary;
+    expect(text).toContain("3 locales: 3 succeeded, 0 partial, 0 failed");
+    expect(text).toContain(
+      "Step passed with work left for a person: machine translation is disabled by policy, so translate exited 3.",
+    );
+    expect(text).toContain(
+      [
+        "Needs a human translation:",
+        "- de: 2 keys need a human translation (unfilled: a, b)",
+        "- fr: 1 key needs a human translation (protected: legal)",
+      ].join("\n"),
+    );
+    expect(text).not.toContain("- es:");
+  });
+
+  it("the default command is translate, so a missing command argument gets the same treatment", () => {
+    expect(buildReport(humanOnlyRun(), 3).exitStatus).toBe(0);
+  });
+
+  it("any other exit code reports needsHuman false and adds no human-work section", () => {
+    const report = buildReport(humanOnlyRun(), 0, "", "translate");
+    expect(report.needsHuman).toBe(false);
+    expect(report.annotations).toEqual([]);
+    expect(report.summary).not.toContain("Needs a human translation");
+  });
+
+  it("exit 3 from check or diff is not reinterpreted: it still fails the step", () => {
+    const check = buildReport(checkResult({ locales: [checkLocale()] }), 3, "", "check");
+    expect(check.exitStatus).toBe(3);
+    expect(check.needsHuman).toBe(false);
+    const diff = buildReport(diffResult({ locales: [diffLocale()] }), 3, "", "diff");
+    expect(diff.exitStatus).toBe(3);
+  });
+
+  it("exit 3 with no parseable summary is a whole-run failure, not a pass", () => {
+    const report = buildReport(null, 3, "", "translate");
+    expect(report.exitStatus).toBe(3);
+    expect(report.needsHuman).toBe(false);
+    expect(report.annotations[0]).toContain("[VERBATRA_FAILED]");
+  });
+
+  it("a summary from a CLI without unfilled or protected lists still passes the step", () => {
+    const report = buildReport(summary({ locales: [locale()] }), 3, "", "translate");
+    expect(report.exitStatus).toBe(0);
+    expect(report.annotations).toEqual([]);
+  });
+
+  it("an untrusted key cannot forge a workflow command or break the list", () => {
+    const s = summary({
+      locales: [locale({ locale: "de", unfilled: ["x|y\n::stop-commands::z"] })],
+    });
+    const report = buildReport(s, 3, "", "translate");
+    expect(report.annotations[0]).toContain("unfilled: x|y%0A::stop-commands::z");
+    expect(report.summary).toContain("- de: 1 key needs a human translation (unfilled: x\\|y ::stop-commands::z)");
   });
 });

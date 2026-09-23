@@ -19,6 +19,10 @@ for (const annotation of report.annotations) {
   process.stdout.write(`${annotation}\n`);
 }
 
+if (process.env.GITHUB_OUTPUT) {
+  appendFileSync(process.env.GITHUB_OUTPUT, `needs-human=${report.needsHuman}\n`);
+}
+
 if (process.env.GITHUB_STEP_SUMMARY) {
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${report.summary}\n`);
 }
