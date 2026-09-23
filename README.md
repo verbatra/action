@@ -185,7 +185,7 @@ The `command` input selects which CLI command runs. All three report through the
 
 | Command | Writes files | Needs an API key | Fails the step when |
 | --- | --- | --- | --- |
-| `translate` (default) | yes | yes | translation fails for a locale |
+| `translate` (default) | yes | yes | a locale fails, or is written only partially because keys were withheld |
 | `translate` with `dry-run: "true"` | no | no | translation could not be planned |
 | `check` | no | no | any locale has missing or stale keys |
 | `diff` | no | no | any locale has pending changes |
@@ -307,6 +307,8 @@ Set only the keys your configured provider needs, and each value must be a `${{ 
 ## Job summary and annotations
 
 Every run writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts table, or a whole-run failure heading) and annotates failures with `::error::` workflow commands, one per affected locale or one for a whole-run failure. The job then exits with the CLI's own exit code, and it does so only after the annotations and the summary have been emitted.
+
+For `translate`, a locale's status is `ok`, `partial`, or `failed`. A `partial` locale was written, but some of its keys were withheld by the integrity gate, a provider failure, or the token budget, and the CLI exits 1 for it just as for a failed one. It gets its own `LOCALE_PARTIAL` annotation naming how many keys landed and which were withheld, a `partial` value in the status column, a line under "Partial locales" in the summary, and its own count on the aggregate line (`3 locales: 1 succeeded, 1 partial, 1 failed`). A failed locale with no error of its own, because every key was withheld, names its withheld keys the same way.
 
 ## Versioning
 
