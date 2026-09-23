@@ -199,7 +199,7 @@ The `command` input selects which CLI command runs. All three report through the
 
 ### Check translation quality
 
-Set `qa: "true"` together with `command: check` to run `verbatra check --qa`, which runs the placeholder, markup, ICU, and plural checks and the review flags over every committed target value, not only over values verbatra writes itself. It is read-only and keyless like `check`, and needs `version` `0.12.0` or newer; the action rejects `qa` with an older version before installing anything.
+Set `qa: "true"` together with `command: check` to run `verbatra check --qa`, which runs the placeholder, markup, ICU, and plural checks and the review flags over every committed target value, not only over values verbatra writes itself. It is read-only and keyless like `check`, and needs `version` `0.12.0` or newer; the action rejects `qa` with an older version before installing anything. A prerelease such as `0.12.0-next.0` is rejected too, deliberately: semver ranks a prerelease below its release, and a prerelease is not guaranteed to carry the final `check --qa` contract, so pin the release.
 
 ```yaml
       - uses: verbatra/action@v1

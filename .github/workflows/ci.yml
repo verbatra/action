@@ -302,6 +302,22 @@ jobs:
           echo "::error::action.yml accepted qa with version 0.11.1, which has no check --qa; the qa minimum-version guard is not working"
           exit 1
 
+      - name: Reject qa with a prerelease of the quality check's minimum version
+        id: qa-prerelease
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0-next.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          qa: "true"
+
+      - name: Assert qa with a 0.12.0 prerelease was rejected, as semver ranks it below 0.12.0
+        if: steps.qa-prerelease.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted qa with version 0.12.0-next.0; a prerelease ranks below its release, so the qa minimum-version guard must reject it"
+          exit 1
+
       - name: Reject a version input below the minimum the action supports
         id: below-minimum
         continue-on-error: true

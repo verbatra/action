@@ -121,7 +121,8 @@ The job also asserts that each input guard rejects rather than silently accepts:
 unsupported `command`, a `dry-run`, `qa`, or `qa-strict` value other than
 `"true"` or `"false"`, `dry-run` combined with a read-only command, `qa`
 combined with a command other than `check`, `qa-severity` or `qa-strict`
-without `qa`, `qa` with a `version` below `0.12.0`, a floating
+without `qa`, `qa` with a `version` below `0.12.0` (a `0.12.0-next.*` prerelease included, on
+purpose), a floating
 `version`, a `version` below the minimum the action supports, a `version` whose
 second line forges a workflow command, and a `working-directory` with no
 recognized verbatra config file directly inside it. If you add a guard to
