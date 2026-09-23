@@ -224,4 +224,5 @@ runs:
         ERROR_FILE: ${{ steps.run.outputs.error_file }}
         EXIT_CODE: ${{ steps.run.outputs.exit_code }}
         COMMAND: ${{ steps.run.outputs.command }}
+        QA_STRICT: ${{ inputs.qa-strict }}
       run: node "$GITHUB_ACTION_PATH/annotate.mjs" "$SUMMARY_FILE" "$ERROR_FILE" "$EXIT_CODE" "$COMMAND"

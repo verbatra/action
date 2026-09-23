@@ -222,22 +222,29 @@ function qaSkippedSourceLines(qa) {
   ];
 }
 
-function qaFailureLines(qa, exitCode) {
-  if (exitCode === 0 || (qa.errors === 0 && qa.warnings === 0)) {
-    return [];
-  }
-  return [
-    "",
-    `Step failed: the quality check found ${qa.errors} errors and ${qa.warnings} warnings. check --qa exits 1 on any error, and on any warning when qa-strict is set.`,
-  ];
+function qaFailedStep(qa, qaStrict) {
+  return qa.errors > 0 || (qaStrict && qa.warnings > 0);
 }
 
-function qaMarkdownLines(result, exitCode) {
+function qaFailureLines(qa, exitCode, qaStrict) {
+  if (exitCode === 0 || !qaFailedStep(qa, qaStrict)) {
+    return [];
+  }
+  const found = qaStrict
+    ? `${qa.errors} errors and ${qa.warnings} warnings`
+    : `${qa.errors} errors`;
+  const rule = qaStrict
+    ? "check --qa with qa-strict exits 1 on any error or warning."
+    : "check --qa exits 1 on any error.";
+  return ["", `Step failed: the quality check found ${found}. ${rule}`];
+}
+
+function qaMarkdownLines(result, exitCode, qaStrict) {
   if (result.qa === undefined) {
     return [];
   }
   return [
-    ...qaFailureLines(result.qa, exitCode),
+    ...qaFailureLines(result.qa, exitCode, qaStrict),
     ...qaFindingLines(result),
     ...qaSkippedSourceLines(result.qa),
   ];
@@ -267,7 +274,7 @@ function checkAggregate(result, drifted) {
     : `${counts}; quality check: ${result.qa.errors} errors, ${result.qa.warnings} warnings`;
 }
 
-function checkMarkdown(result, exitCode) {
+function checkMarkdown(result, exitCode, options = {}) {
   const drifted = result.locales.filter((entry) => !entry.inSync);
   const lines = [
     "## verbatra check summary",
@@ -285,7 +292,7 @@ function checkMarkdown(result, exitCode) {
       ...drifted.map((entry) => `- ${escapeMarkdown(entry.locale)}: ${driftDetail(entry)}`),
     );
   }
-  lines.push(...qaMarkdownLines(result, exitCode));
+  lines.push(...qaMarkdownLines(result, exitCode, options.qaStrict === true));
   return lines.join("\n");
 }
 
@@ -487,7 +494,13 @@ function wholeRunMarkdown(exitCode, stderrText) {
   ].join("\n");
 }
 
-export function buildReport(summary, exitCode, stderrText = "", command = "translate") {
+export function buildReport(
+  summary,
+  exitCode,
+  stderrText = "",
+  command = "translate",
+  options = {},
+) {
   if (summary === null) {
     const annotations = exitCode !== 0 ? [wholeRunAnnotation(exitCode, stderrText)] : [];
     return {
@@ -502,7 +515,7 @@ export function buildReport(summary, exitCode, stderrText = "", command = "trans
   const needsHuman = renderer === RENDERERS.translate && exitCode === NEEDS_HUMAN_EXIT_CODE;
   return {
     annotations: renderer.annotations(summary, exitCode),
-    summary: renderer.markdown(summary, exitCode),
+    summary: renderer.markdown(summary, exitCode, options),
     exitStatus: needsHuman ? 0 : exitCode,
     needsHuman,
   };

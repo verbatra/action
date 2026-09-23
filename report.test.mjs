@@ -1003,7 +1003,7 @@ describe("buildReport: check --qa findings", () => {
       "check",
     ).summary;
     expect(summaryText).toContain(
-      "Step failed: the quality check found 1 errors and 1 warnings. check --qa exits 1 on any error, and on any warning when qa-strict is set.",
+      "Step failed: the quality check found 1 errors. check --qa exits 1 on any error.",
     );
     expect(summaryText).not.toContain("Drifted locales:");
     expect(summaryText).toContain(
@@ -1032,6 +1032,28 @@ describe("buildReport: check --qa findings", () => {
     ]);
     expect(report.summary).toContain("Drifted locales:");
     expect(report.summary).toContain("Step failed: the quality check found 1 errors");
+  });
+
+  it("does not blame the quality check for a drift failure when it found only warnings", () => {
+    const result = qaResult([["de", [lengthWarning]]]);
+    const drifted = {
+      ...result,
+      inSync: false,
+      locales: [{ ...result.locales[0], missing: 1, inSync: false }],
+    };
+    const text = buildReport(drifted, 1, "", "check").summary;
+    expect(text).toContain("Drifted locales:");
+    expect(text).not.toContain("Step failed: the quality check");
+    expect(text).toContain("| de | title | warning | LENGTH_RATIO |  |");
+  });
+
+  it("blames warnings only when qa-strict made them fail the step", () => {
+    const report = buildReport(qaResult([["de", [lengthWarning]]]), 1, "", "check", {
+      qaStrict: true,
+    });
+    expect(report.summary).toContain(
+      "Step failed: the quality check found 0 errors and 1 warnings. check --qa with qa-strict exits 1 on any error or warning.",
+    );
   });
 
   it("annotates errors before warnings, so the cap never hides an error behind warnings", () => {

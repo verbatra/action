@@ -13,6 +13,7 @@ const report = buildReport(
   resolveExitCode(exitCodeArg),
   stderrText,
   commandArg || "translate",
+  { qaStrict: process.env.QA_STRICT === "true" },
 );
 
 for (const annotation of report.annotations) {

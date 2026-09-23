@@ -357,3 +357,46 @@ describe("annotate.mjs: the command argument selects the renderer", () => {
     expect(writeSpy).not.toHaveBeenCalled();
   });
 });
+
+describe("annotate.mjs: qa-strict reaches the report", () => {
+  function warningOnlyEnvelope() {
+    return {
+      ok: true,
+      version: 1,
+      command: "check",
+      result: {
+        inSync: true,
+        locales: [
+          {
+            locale: "de",
+            missing: 0,
+            stale: 0,
+            upToDate: 1,
+            inSync: true,
+            qa: {
+              checked: 1,
+              errors: 0,
+              warnings: 1,
+              findings: [{ key: "title", severity: "warning", reason: "LENGTH_RATIO" }],
+            },
+          },
+        ],
+        qa: { errors: 0, warnings: 1, invalidSourceKeys: [] },
+      },
+    };
+  }
+
+  it("reads QA_STRICT from the environment and explains a strict warning failure", () => {
+    const summaryFile = fixture("summary.json", JSON.stringify(warningOnlyEnvelope()));
+    const errorFile = fixture("error.txt", "");
+    const stepSummaryFile = join(workDir, "step-summary.md");
+
+    const child = runOutOfProcess([summaryFile, errorFile, "1", "check"], {
+      GITHUB_STEP_SUMMARY: stepSummaryFile,
+      QA_STRICT: "true",
+    });
+
+    expect(child.status).toBe(1);
+    expect(readFileSync(stepSummaryFile, "utf8")).toContain("with qa-strict exits 1");
+  });
+});
