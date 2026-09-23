@@ -1003,7 +1003,7 @@ describe("buildReport: check --qa findings", () => {
       "check",
     ).summary;
     expect(summaryText).toContain(
-      "Step failed: the quality check found 1 errors and 1 warnings. check --qa exits 1 on any error, and on any warning when qa-strict is set.",
+      "Step failed: the quality check found 1 errors. check --qa exits 1 on any error.",
     );
     expect(summaryText).not.toContain("Drifted locales:");
     expect(summaryText).toContain(
@@ -1034,7 +1034,29 @@ describe("buildReport: check --qa findings", () => {
     expect(report.summary).toContain("Step failed: the quality check found 1 errors");
   });
 
-  it("annotates errors before warnings, so the cap never hides an error behind warnings", () => {
+  it("does not blame the quality check for a drift failure when it found only warnings", () => {
+    const result = qaResult([["de", [lengthWarning]]]);
+    const drifted = {
+      ...result,
+      inSync: false,
+      locales: [{ ...result.locales[0], missing: 1, inSync: false }],
+    };
+    const text = buildReport(drifted, 1, "", "check").summary;
+    expect(text).toContain("Drifted locales:");
+    expect(text).not.toContain("Step failed: the quality check");
+    expect(text).toContain("| de | title | warning | LENGTH_RATIO |  |");
+  });
+
+  it("blames warnings only when qa-strict made them fail the step", () => {
+    const report = buildReport(qaResult([["de", [lengthWarning]]]), 1, "", "check", {
+      qaStrict: true,
+    });
+    expect(report.summary).toContain(
+      "Step failed: the quality check found 0 errors and 1 warnings. check --qa with qa-strict exits 1 on any error or warning.",
+    );
+  });
+
+  it("keeps at most 10 annotations per severity, errors listed first, and counts the rest", () => {
     const warnings = Array.from({ length: 60 }, (_, index) => ({
       key: `w${index}`,
       severity: "warning",
@@ -1052,21 +1074,59 @@ describe("buildReport: check --qa findings", () => {
     expect(report.annotations[0]).toBe(
       "::error title=verbatra qa%3A fr::[placeholder] greeting (-{name}, +{nom})",
     );
-    expect(report.annotations).toHaveLength(51);
-    expect(report.annotations[50]).toBe(
-      "::notice title=verbatra qa::11 more quality findings are not annotated. The job summary lists the first 100.",
+    expect(report.annotations.filter((line) => line.startsWith("::warning"))).toHaveLength(10);
+    expect(report.annotations).toHaveLength(12);
+    expect(report.annotations[11]).toBe(
+      "::notice title=verbatra::50 more warnings not annotated, because GitHub shows at most 10 annotations of each severity per step. The job summary lists them all.",
     );
   });
 
-  it("caps the findings table and says how many more there are", () => {
-    const warnings = Array.from({ length: 105 }, (_, index) => ({
+  it("drift errors come before quality errors, so the error cap keeps them", () => {
+    const errors = Array.from({ length: 12 }, (_, index) => ({
+      ...placeholderError,
+      key: `e${index}`,
+    }));
+    const result = qaResult([["de", errors]]);
+    const drifted = {
+      ...result,
+      inSync: false,
+      locales: [{ ...result.locales[0], missing: 2, inSync: false }],
+    };
+    const report = buildReport(drifted, 1, "", "check");
+    expect(report.annotations[0]).toContain("[LOCALE_DRIFTED]");
+    expect(report.annotations.filter((line) => line.startsWith("::error"))).toHaveLength(10);
+    expect(report.annotations.at(-1)).toContain("::notice title=verbatra::3 more errors not annotated");
+    expect(report.annotations.at(-1)).not.toContain("warning");
+  });
+
+  it("names both severities in the notice when both overflow, singular when one is left", () => {
+    const findings = [
+      ...Array.from({ length: 11 }, (_, index) => ({ ...placeholderError, key: `e${index}` })),
+      ...Array.from({ length: 12 }, (_, index) => ({ ...lengthWarning, key: `w${index}` })),
+    ];
+    const report = buildReport(qaResult([["de", findings]]), 1, "", "check");
+    expect(report.annotations).toHaveLength(21);
+    expect(report.annotations[20]).toContain("::notice title=verbatra::1 more error and 2 more warnings not annotated");
+  });
+
+  it("caps translate annotations per step too", () => {
+    const locales = Array.from({ length: 12 }, (_, index) =>
+      locale({ locale: `l${index}`, status: "failed", error: { code: "X", message: "y" } }),
+    );
+    const report = buildReport(summary({ locales, failed: locales.map((l) => l.locale) }), 1);
+    expect(report.annotations).toHaveLength(11);
+    expect(report.annotations[10]).toContain("2 more errors not annotated");
+  });
+
+  it("the findings table is the full view, capped only as a guard on the summary size", () => {
+    const warnings = Array.from({ length: 1005 }, (_, index) => ({
       key: `w${index}`,
       severity: "warning",
       reason: "UNTRANSLATED",
     }));
     const summaryText = buildReport(qaResult([["de", warnings]]), 0, "", "check").summary;
-    expect(summaryText).toContain("| de | w99 | warning | UNTRANSLATED |  |");
-    expect(summaryText).not.toContain("| de | w100 |");
+    expect(summaryText).toContain("| de | w999 | warning | UNTRANSLATED |  |");
+    expect(summaryText).not.toContain("| de | w1000 |");
     expect(summaryText).toContain("and 5 more. Run verbatra check --qa locally for the full list.");
   });
 
@@ -1191,6 +1251,25 @@ describe("buildReport: translate exit 3 is work for a person, not a failure", ()
     const report = buildReport(summary({ locales: [locale()] }), 3, "", "translate");
     expect(report.exitStatus).toBe(0);
     expect(report.annotations).toEqual([]);
+  });
+
+  it("skips the list heading when no locale names a key left for a person", () => {
+    const text = buildReport(summary({ locales: [locale()] }), 3, "", "translate").summary;
+    expect(text).toContain("Step passed with work left for a person");
+    expect(text).not.toContain("Needs a human translation:");
+  });
+
+  it("needsHuman is keyed on the translate command itself, not on the translate fallback", () => {
+    const report = buildReport(
+      summary({ locales: [locale({ unfilled: ["a"] })] }),
+      3,
+      "",
+      "publish",
+    );
+    expect(report.needsHuman).toBe(false);
+    expect(report.exitStatus).toBe(3);
+    expect(report.annotations).toEqual([]);
+    expect(report.summary).not.toContain("Step passed");
   });
 
   it("an untrusted key cannot forge a workflow command or break the list", () => {

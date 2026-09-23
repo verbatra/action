@@ -50,7 +50,8 @@ inputs:
     description: >-
       Report what would change without calling a provider or writing (maps to --dry-run). Applies
       only to the translate command; combining it with check or diff fails the step, because those
-      commands are already read-only and the CLI rejects the flag.
+      commands are already read-only and the CLI rejects the flag. Must be "true" or "false";
+      any other value fails the step.
     required: false
     default: "false"
   qa:
@@ -60,7 +61,7 @@ inputs:
       annotation: an error for a value the integrity gate would refuse (a broken
       placeholder, markup, or ICU message), a warning for a review reason. The step fails
       on any error finding. Needs version 0.12.0 or newer; an older version fails the step
-      before installing the CLI.
+      before installing the CLI. Must be "true" or "false"; any other value fails the step.
     required: false
     default: "false"
   qa-severity:
@@ -73,7 +74,7 @@ inputs:
   qa-strict:
     description: >-
       Also fail the step when the quality check reports only warnings (maps to --strict).
-      Requires qa.
+      Requires qa. Must be "true" or "false"; any other value fails the step.
     required: false
     default: "false"
   node-version:
@@ -148,6 +149,15 @@ runs:
             exit 1
             ;;
         esac
+        for boolean_input in "dry-run:$DRY_RUN" "qa:$QA" "qa-strict:$QA_STRICT"; do
+          case "${boolean_input#*:}" in
+            true|false) ;;
+            *)
+              echo "::error::the ${boolean_input%%:*} input must be \"true\" or \"false\"."
+              exit 1
+              ;;
+          esac
+        done
         if [ "$DRY_RUN" = "true" ] && [ "$COMMAND" != "translate" ]; then
           echo "::error::the dry-run input applies only to the translate command. The check and diff commands are already read-only and the CLI rejects --dry-run. Remove dry-run, or set command to translate."
           exit 1
@@ -224,4 +234,5 @@ runs:
         ERROR_FILE: ${{ steps.run.outputs.error_file }}
         EXIT_CODE: ${{ steps.run.outputs.exit_code }}
         COMMAND: ${{ steps.run.outputs.command }}
+        QA_STRICT: ${{ inputs.qa-strict }}
       run: node "$GITHUB_ACTION_PATH/annotate.mjs" "$SUMMARY_FILE" "$ERROR_FILE" "$EXIT_CODE" "$COMMAND"

@@ -137,8 +137,7 @@ function driftDetail(entry) {
   return `${entry.missing} missing, ${entry.stale} stale`;
 }
 
-const QA_ANNOTATION_LIMIT = 50;
-const QA_SUMMARY_LIMIT = 100;
+const QA_SUMMARY_LIMIT = 1000;
 
 function qaFindings(result) {
   const findings = result.locales.flatMap((entry) =>
@@ -164,24 +163,14 @@ function findingMessage(finding) {
 }
 
 function qaAnnotations(result) {
-  const findings = qaFindings(result);
-  const annotations = findings
-    .slice(0, QA_ANNOTATION_LIMIT)
-    .map(({ locale, finding }) =>
-      annotation(
-        findingLevel(finding),
-        `verbatra qa: ${locale}`,
-        finding.reason,
-        findingMessage(finding),
-      ),
-    );
-  const omitted = findings.length - annotations.length;
-  if (omitted > 0) {
-    annotations.push(
-      `::notice title=verbatra qa::${omitted} more quality findings are not annotated. The job summary lists the first ${QA_SUMMARY_LIMIT}.`,
-    );
-  }
-  return annotations;
+  return qaFindings(result).map(({ locale, finding }) =>
+    annotation(
+      findingLevel(finding),
+      `verbatra qa: ${locale}`,
+      finding.reason,
+      findingMessage(finding),
+    ),
+  );
 }
 
 function qaFindingRow({ locale, finding }) {
@@ -222,22 +211,29 @@ function qaSkippedSourceLines(qa) {
   ];
 }
 
-function qaFailureLines(qa, exitCode) {
-  if (exitCode === 0 || (qa.errors === 0 && qa.warnings === 0)) {
-    return [];
-  }
-  return [
-    "",
-    `Step failed: the quality check found ${qa.errors} errors and ${qa.warnings} warnings. check --qa exits 1 on any error, and on any warning when qa-strict is set.`,
-  ];
+function qaFailedStep(qa, qaStrict) {
+  return qa.errors > 0 || (qaStrict && qa.warnings > 0);
 }
 
-function qaMarkdownLines(result, exitCode) {
+function qaFailureLines(qa, exitCode, qaStrict) {
+  if (exitCode === 0 || !qaFailedStep(qa, qaStrict)) {
+    return [];
+  }
+  const found = qaStrict
+    ? `${qa.errors} errors and ${qa.warnings} warnings`
+    : `${qa.errors} errors`;
+  const rule = qaStrict
+    ? "check --qa with qa-strict exits 1 on any error or warning."
+    : "check --qa exits 1 on any error.";
+  return ["", `Step failed: the quality check found ${found}. ${rule}`];
+}
+
+function qaMarkdownLines(result, exitCode, qaStrict) {
   if (result.qa === undefined) {
     return [];
   }
   return [
-    ...qaFailureLines(result.qa, exitCode),
+    ...qaFailureLines(result.qa, exitCode, qaStrict),
     ...qaFindingLines(result),
     ...qaSkippedSourceLines(result.qa),
   ];
@@ -267,7 +263,7 @@ function checkAggregate(result, drifted) {
     : `${counts}; quality check: ${result.qa.errors} errors, ${result.qa.warnings} warnings`;
 }
 
-function checkMarkdown(result, exitCode) {
+function checkMarkdown(result, exitCode, options = {}) {
   const drifted = result.locales.filter((entry) => !entry.inSync);
   const lines = [
     "## verbatra check summary",
@@ -285,7 +281,7 @@ function checkMarkdown(result, exitCode) {
       ...drifted.map((entry) => `- ${escapeMarkdown(entry.locale)}: ${driftDetail(entry)}`),
     );
   }
-  lines.push(...qaMarkdownLines(result, exitCode));
+  lines.push(...qaMarkdownLines(result, exitCode, options.qaStrict === true));
   return lines.join("\n");
 }
 
@@ -401,11 +397,12 @@ function needsHumanAnnotations(result) {
   });
 }
 
-function needsHumanLines(result) {
+function needsHumanListLines(result) {
   const locales = result.locales.filter((entry) => needsHumanDetail(entry) !== null);
+  if (locales.length === 0) {
+    return [];
+  }
   return [
-    "",
-    `Step passed with work left for a person: machine translation is disabled by policy, so translate exited ${NEEDS_HUMAN_EXIT_CODE}. The action reports that as a warning, not a failure. Hand the keys off with verbatra export.`,
     "",
     "Needs a human translation:",
     ...locales.map(
@@ -414,15 +411,23 @@ function needsHumanLines(result) {
   ];
 }
 
-function translateMarkdown(result, exitCode) {
+function needsHumanLines(result) {
+  return [
+    "",
+    `Step passed with work left for a person: machine translation is disabled by policy, so translate exited ${NEEDS_HUMAN_EXIT_CODE}. The action reports that as a warning, not a failure. Hand the keys off with verbatra export.`,
+    ...needsHumanListLines(result),
+  ];
+}
+
+function translateMarkdown(result, _exitCode, options = {}) {
   const markdown = summaryMarkdown(result);
-  return exitCode === NEEDS_HUMAN_EXIT_CODE
+  return options.needsHuman === true
     ? [markdown, ...needsHumanLines(result)].join("\n")
     : markdown;
 }
 
-function translateAnnotations(result, exitCode) {
-  if (exitCode === NEEDS_HUMAN_EXIT_CODE) {
+function translateAnnotations(result, exitCode, options = {}) {
+  if (options.needsHuman === true) {
     return needsHumanAnnotations(result);
   }
   if (exitCode !== 1) {
@@ -487,7 +492,43 @@ function wholeRunMarkdown(exitCode, stderrText) {
   ].join("\n");
 }
 
-export function buildReport(summary, exitCode, stderrText = "", command = "translate") {
+export const ANNOTATION_LIMIT_PER_LEVEL = 10;
+
+function annotationLevel(line) {
+  return line.match(/^::([a-z]+)/)[1];
+}
+
+function omittedPhrase(level, count) {
+  return `${count} more ${level}${count === 1 ? "" : "s"}`;
+}
+
+function capAnnotations(annotations) {
+  const seen = new Map();
+  const kept = annotations.filter((line) => {
+    const level = annotationLevel(line);
+    const count = (seen.get(level) ?? 0) + 1;
+    seen.set(level, count);
+    return count <= ANNOTATION_LIMIT_PER_LEVEL;
+  });
+  const omitted = [...seen]
+    .filter(([, count]) => count > ANNOTATION_LIMIT_PER_LEVEL)
+    .map(([level, count]) => omittedPhrase(level, count - ANNOTATION_LIMIT_PER_LEVEL));
+  if (omitted.length === 0) {
+    return kept;
+  }
+  return [
+    ...kept,
+    `::notice title=verbatra::${omitted.join(" and ")} not annotated, because GitHub shows at most ${ANNOTATION_LIMIT_PER_LEVEL} annotations of each severity per step. The job summary lists them all.`,
+  ];
+}
+
+export function buildReport(
+  summary,
+  exitCode,
+  stderrText = "",
+  command = "translate",
+  options = {},
+) {
   if (summary === null) {
     const annotations = exitCode !== 0 ? [wholeRunAnnotation(exitCode, stderrText)] : [];
     return {
@@ -499,10 +540,11 @@ export function buildReport(summary, exitCode, stderrText = "", command = "trans
   }
 
   const renderer = resolveRenderer(command);
-  const needsHuman = renderer === RENDERERS.translate && exitCode === NEEDS_HUMAN_EXIT_CODE;
+  const needsHuman = command === "translate" && exitCode === NEEDS_HUMAN_EXIT_CODE;
+  const renderOptions = { ...options, needsHuman };
   return {
-    annotations: renderer.annotations(summary, exitCode),
-    summary: renderer.markdown(summary, exitCode),
+    annotations: capAnnotations(renderer.annotations(summary, exitCode, renderOptions)),
+    summary: renderer.markdown(summary, exitCode, renderOptions),
     exitStatus: needsHuman ? 0 : exitCode,
     needsHuman,
   };

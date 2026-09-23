@@ -199,7 +199,7 @@ The `command` input selects which CLI command runs. All three report through the
 
 ### Check translation quality
 
-Set `qa: "true"` together with `command: check` to run `verbatra check --qa`, which runs the placeholder, markup, ICU, and plural checks and the review flags over every committed target value, not only over values verbatra writes itself. It is read-only and keyless like `check`, and needs `version` `0.12.0` or newer; the action rejects `qa` with an older version before installing anything.
+Set `qa: "true"` together with `command: check` to run `verbatra check --qa`, which runs the placeholder, markup, ICU, and plural checks and the review flags over every committed target value, not only over values verbatra writes itself. It is read-only and keyless like `check`, and needs `version` `0.12.0` or newer; the action rejects `qa` with an older version before installing anything. A prerelease such as `0.12.0-next.0` is rejected too, deliberately: semver ranks a prerelease below its release, and a prerelease is not guaranteed to carry the final `check --qa` contract, so pin the release.
 
 ```yaml
       - uses: verbatra/action@v1
@@ -211,7 +211,7 @@ Set `qa: "true"` together with `command: check` to run `verbatra check --qa`, wh
 
 Each finding becomes an annotation naming the locale, the key, and the reason: an `::error::` for a value the integrity gate would refuse, and a `::warning::` for a review reason. The job summary adds `qa errors` and `qa warnings` columns and a findings table. The step fails on any error finding. Set `qa-strict: "true"` to fail on warnings too, or `qa-severity: error` to report errors only. The CLI rejects any other `qa-severity` value, and rejects `qa-severity: error` together with `qa-strict`, with exit code 2.
 
-At most 50 findings are annotated, errors first, and the summary table lists the first 100; run `verbatra check --qa` locally for the full list.
+The job summary's findings table is the full view: it lists every finding (up to 1000, to keep the summary under GitHub's size limit). Annotations are only a preview, because GitHub shows at most 10 error, 10 warning, and 10 notice annotations per step ([annotation limits](https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations)). The action keeps drift errors first, then quality errors, then warnings, and adds one notice counting what it left out.
 
 ## Inputs
 
@@ -261,6 +261,7 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     # Report what would change without calling a provider or writing (maps to --dry-run).
     # Applies only to the translate command; combining it with check or diff fails the
     # step, because those commands are already read-only and the CLI rejects the flag.
+    # Must be "true" or "false"; any other value fails the step.
     # Default: false
     dry-run: "false"
 
@@ -269,7 +270,8 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     # annotation: an error for a value the integrity gate would refuse (a broken
     # placeholder, markup, or ICU message), a warning for a review reason. The step fails
     # on any error finding. Needs version 0.12.0 or newer; an older version fails the step
-    # before installing the CLI.
+    # before installing the CLI. Must be "true" or "false"; any other value fails the
+    # step.
     # Default: false
     qa: "false"
 
@@ -280,7 +282,7 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     qa-severity: ''
 
     # Also fail the step when the quality check reports only warnings (maps to --strict).
-    # Requires qa.
+    # Requires qa. Must be "true" or "false"; any other value fails the step.
     # Default: false
     qa-strict: "false"
 
@@ -364,7 +366,7 @@ Set only the keys your configured provider needs, and each value must be a `${{ 
 
 ## Job summary and annotations
 
-Every run writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts table, or a whole-run failure heading) and annotates failures with `::error::` workflow commands, one per affected locale or one for a whole-run failure. A `check` with `qa` adds one annotation per quality finding, `::warning::` for a review reason. The job then exits with the CLI's own exit code, and it does so only after the annotations and the summary have been emitted. The one exception is `translate` exiting `3`, which passes the step; see [Human-only mode](#human-only-mode).
+Every run writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts table, or a whole-run failure heading) and annotates failures with `::error::` workflow commands, one per affected locale or one for a whole-run failure. A `check` with `qa` adds one annotation per quality finding, `::warning::` for a review reason. GitHub shows at most 10 annotations of each severity per step, so past that the action adds one notice counting the rest, and the job summary remains the full report. The job then exits with the CLI's own exit code, and it does so only after the annotations and the summary have been emitted. The one exception is `translate` exiting `3`, which passes the step; see [Human-only mode](#human-only-mode).
 
 For `translate`, a locale's status is `ok`, `partial`, or `failed`. A `partial` locale was written, but some of its keys were withheld by the integrity gate, a provider failure, or the token budget, and the CLI exits 1 for it just as for a failed one. It gets its own `LOCALE_PARTIAL` annotation naming how many keys landed and which were withheld, a `partial` value in the status column, a line under "Partial locales" in the summary, and its own count on the aggregate line (`3 locales: 1 succeeded, 1 partial, 1 failed`). A failed locale with no error of its own, because every key was withheld, names its withheld keys the same way.
 
@@ -409,6 +411,8 @@ Provider API keys are never accepted as an action input; they are read only from
 The hosted documentation site at [verbatra.kreitz-webdev.de](https://verbatra.kreitz-webdev.de) is the canonical reference. The [GitHub Action guide](https://verbatra.kreitz-webdev.de/docs/github-action) covers this action in the context of a full project, and the [CLI reference](https://verbatra.kreitz-webdev.de/docs/cli) documents every command and flag the action runs on your behalf.
 
 ## Contributing
+
+The `qa` input and the `needs-human` output are covered by unit tests and by guard self-tests, but not yet by a self-test against a real CLI, because they need `@verbatra/cli` `0.12.0`. Those tests are on the [release checklist](./CONTRIBUTING.md#release-checklist).
 
 Contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md) first; they follow the main project's guidelines, with the differences this repository actually has (npm rather than pnpm, no changesets, no commit hook). Commits here follow Conventional Commits. Run `npm ci && npm test` before opening a pull request; the same suite runs in CI on Node 22.14.0 and 24, alongside a job that runs the action against itself.
 
