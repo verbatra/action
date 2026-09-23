@@ -19,10 +19,13 @@
   },
   "scripts": {
     "test": "vitest run --coverage",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "docs:usage": "node generate-usage.mjs",
+    "docs:usage:check": "node generate-usage.mjs --check"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "5.0.1",
-    "vitest": "5.0.1"
+    "vitest": "5.0.1",
+    "yaml": "2.9.1"
   }
 }
