@@ -207,6 +207,53 @@ jobs:
           echo "::error::action.yml accepted dry-run together with command: check; the input was silently ignored instead of failing loudly"
           exit 1
 
+      - name: Reject a dry-run input that is not "true" or "false"
+        id: dry-run-not-boolean
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          working-directory: .github/fixtures/in-sync
+          dry-run: "yes"
+
+      - name: Assert the non-boolean dry-run input was rejected rather than read as false
+        if: steps.dry-run-not-boolean.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted dry-run: yes; the boolean input guard is not working"
+          exit 1
+
+      - name: Reject a qa input that is not "true" or "false"
+        id: qa-not-boolean
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          qa: "TRUE"
+
+      - name: Assert the non-boolean qa input was rejected rather than read as false
+        if: steps.qa-not-boolean.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted qa: TRUE; the boolean input guard is not working"
+          exit 1
+
+      - name: Reject a qa-strict input that is not "true" or "false"
+        id: qa-strict-not-boolean
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          qa-strict: "1"
+
+      - name: Assert the non-boolean qa-strict input was rejected rather than read as false
+        if: steps.qa-strict-not-boolean.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted qa-strict: 1; the boolean input guard is not working"
+          exit 1
+
       - name: Reject qa combined with a command other than check
         id: qa-with-translate
         continue-on-error: true

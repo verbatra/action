@@ -261,6 +261,7 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     # Report what would change without calling a provider or writing (maps to --dry-run).
     # Applies only to the translate command; combining it with check or diff fails the
     # step, because those commands are already read-only and the CLI rejects the flag.
+    # Must be "true" or "false"; any other value fails the step.
     # Default: false
     dry-run: "false"
 
@@ -269,7 +270,8 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     # annotation: an error for a value the integrity gate would refuse (a broken
     # placeholder, markup, or ICU message), a warning for a review reason. The step fails
     # on any error finding. Needs version 0.12.0 or newer; an older version fails the step
-    # before installing the CLI.
+    # before installing the CLI. Must be "true" or "false"; any other value fails the
+    # step.
     # Default: false
     qa: "false"
 
@@ -280,7 +282,7 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     qa-severity: ''
 
     # Also fail the step when the quality check reports only warnings (maps to --strict).
-    # Requires qa.
+    # Requires qa. Must be "true" or "false"; any other value fails the step.
     # Default: false
     qa-strict: "false"
 
