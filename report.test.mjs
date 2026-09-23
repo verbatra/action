@@ -915,3 +915,209 @@ describe("check and diff escaping: untrusted locale and key names cannot break o
     }
   });
 });
+
+function qaReport(findings) {
+  return {
+    checked: 5,
+    errors: findings.filter((finding) => finding.severity === "error").length,
+    warnings: findings.filter((finding) => finding.severity === "warning").length,
+    findings,
+  };
+}
+
+function qaResult(localeFindings, over = {}) {
+  const locales = localeFindings.map(([name, findings]) =>
+    checkLocale({ locale: name, qa: qaReport(findings) }),
+  );
+  const totals = locales.reduce(
+    (sum, entry) => ({
+      errors: sum.errors + entry.qa.errors,
+      warnings: sum.warnings + entry.qa.warnings,
+    }),
+    { errors: 0, warnings: 0 },
+  );
+  return checkResult({ locales, qa: { ...totals, invalidSourceKeys: [] }, ...over });
+}
+
+const placeholderError = {
+  key: "greeting",
+  severity: "error",
+  reason: "placeholder",
+  details: ["-{name}", "+{nom}"],
+};
+const lengthWarning = { key: "title", severity: "warning", reason: "LENGTH_RATIO" };
+
+describe("buildReport: check --qa findings", () => {
+  it("annotates an error finding as an error and a review finding as a warning", () => {
+    const report = buildReport(
+      qaResult([["de", [placeholderError, lengthWarning]]]),
+      1,
+      "",
+      "check",
+    );
+    expect(report.exitStatus).toBe(1);
+    expect(report.annotations).toEqual([
+      "::error title=verbatra qa%3A de::[placeholder] greeting (-{name}, +{nom})",
+      "::warning title=verbatra qa%3A de::[LENGTH_RATIO] title",
+    ]);
+  });
+
+  it("annotates warnings on a passing run too, so a non-strict gate still shows them", () => {
+    const report = buildReport(qaResult([["de", [lengthWarning]]]), 0, "", "check");
+    expect(report.exitStatus).toBe(0);
+    expect(report.annotations).toEqual(["::warning title=verbatra qa%3A de::[LENGTH_RATIO] title"]);
+    expect(report.summary).not.toContain("Step failed");
+  });
+
+  it("adds per-locale qa columns and totals to the summary only when the check ran --qa", () => {
+    const withQa = buildReport(
+      qaResult([
+        ["de", [placeholderError, lengthWarning]],
+        ["fr", []],
+      ]),
+      1,
+      "",
+      "check",
+    ).summary;
+    expect(withQa).toContain("| locale | status | missing | stale | up to date | qa errors | qa warnings |");
+    expect(withQa).toContain("| de | in sync | 0 | 0 | 2 | 1 | 1 |");
+    expect(withQa).toContain("| fr | in sync | 0 | 0 | 2 | 0 | 0 |");
+    expect(withQa).toContain("2 locales: 2 in sync, 0 drifted; quality check: 1 errors, 1 warnings");
+
+    const withoutQa = buildReport(
+      checkResult({ locales: [checkLocale()] }),
+      0,
+      "",
+      "check",
+    ).summary;
+    expect(withoutQa).not.toContain("qa errors");
+    expect(withoutQa).not.toContain("quality check");
+  });
+
+  it("explains a failure caused by the quality check alone, then lists every finding", () => {
+    const summaryText = buildReport(
+      qaResult([["de", [placeholderError, lengthWarning]]]),
+      1,
+      "",
+      "check",
+    ).summary;
+    expect(summaryText).toContain(
+      "Step failed: the quality check found 1 errors and 1 warnings. check --qa exits 1 on any error, and on any warning when qa-strict is set.",
+    );
+    expect(summaryText).not.toContain("Drifted locales:");
+    expect(summaryText).toContain(
+      [
+        "Quality findings:",
+        "",
+        "| locale | key | severity | reason | details |",
+        "| --- | --- | --- | --- | --- |",
+        "| de | greeting | error | placeholder | -{name}, +{nom} |",
+        "| de | title | warning | LENGTH_RATIO |  |",
+      ].join("\n"),
+    );
+  });
+
+  it("reports drift and quality findings together when both fail the step", () => {
+    const result = qaResult([["de", [placeholderError]]]);
+    const drifted = {
+      ...result,
+      inSync: false,
+      locales: [{ ...result.locales[0], missing: 1, inSync: false }],
+    };
+    const report = buildReport(drifted, 1, "", "check");
+    expect(report.annotations).toEqual([
+      "::error title=verbatra check%3A de::[LOCALE_DRIFTED] 1 missing, 0 stale",
+      "::error title=verbatra qa%3A de::[placeholder] greeting (-{name}, +{nom})",
+    ]);
+    expect(report.summary).toContain("Drifted locales:");
+    expect(report.summary).toContain("Step failed: the quality check found 1 errors");
+  });
+
+  it("annotates errors before warnings, so the cap never hides an error behind warnings", () => {
+    const warnings = Array.from({ length: 60 }, (_, index) => ({
+      key: `w${index}`,
+      severity: "warning",
+      reason: "UNTRANSLATED",
+    }));
+    const report = buildReport(
+      qaResult([
+        ["de", warnings],
+        ["fr", [placeholderError]],
+      ]),
+      1,
+      "",
+      "check",
+    );
+    expect(report.annotations[0]).toBe(
+      "::error title=verbatra qa%3A fr::[placeholder] greeting (-{name}, +{nom})",
+    );
+    expect(report.annotations).toHaveLength(51);
+    expect(report.annotations[50]).toBe(
+      "::notice title=verbatra qa::11 more quality findings are not annotated. The job summary lists the first 100.",
+    );
+  });
+
+  it("caps the findings table and says how many more there are", () => {
+    const warnings = Array.from({ length: 105 }, (_, index) => ({
+      key: `w${index}`,
+      severity: "warning",
+      reason: "UNTRANSLATED",
+    }));
+    const summaryText = buildReport(qaResult([["de", warnings]]), 0, "", "check").summary;
+    expect(summaryText).toContain("| de | w99 | warning | UNTRANSLATED |  |");
+    expect(summaryText).not.toContain("| de | w100 |");
+    expect(summaryText).toContain("and 5 more. Run verbatra check --qa locally for the full list.");
+  });
+
+  it("names the source keys the quality check skipped for invalid ICU", () => {
+    const result = qaResult([["de", []]]);
+    const summaryText = buildReport(
+      { ...result, qa: { ...result.qa, invalidSourceKeys: ["broken", "also|broken"] } },
+      0,
+      "",
+      "check",
+    ).summary;
+    expect(summaryText).toContain(
+      "Source keys the quality check skipped because the source is not valid ICU: broken, also\\|broken",
+    );
+    expect(summaryText).not.toContain("Quality findings:");
+  });
+
+  it("a clean quality check renders totals and nothing else", () => {
+    const report = buildReport(qaResult([["de", []]]), 0, "", "check");
+    expect(report.annotations).toEqual([]);
+    expect(report.summary).toContain("quality check: 0 errors, 0 warnings");
+    expect(report.summary).not.toContain("Quality findings:");
+  });
+
+  it("a locale missing its own qa block renders zero counts rather than crashing", () => {
+    const summaryText = buildReport(
+      checkResult({
+        locales: [checkLocale()],
+        qa: { errors: 0, warnings: 0 },
+      }),
+      0,
+      "",
+      "check",
+    ).summary;
+    expect(summaryText).toContain("| de | in sync | 0 | 0 | 2 | 0 | 0 |");
+  });
+
+  it("an untrusted key, reason, or detail cannot forge a workflow command or break the table", () => {
+    const hostile = {
+      key: "k|1\n::stop-commands::x",
+      severity: "error",
+      reason: "icu:x,y",
+      details: ["a|b\n## Forged heading"],
+    };
+    const report = buildReport(qaResult([["de:1", [hostile]]]), 1, "", "check");
+    expect(report.annotations).toEqual([
+      "::error title=verbatra qa%3A de%3A1::[icu:x,y] k|1%0A::stop-commands::x (a|b%0A## Forged heading)",
+    ]);
+    const headings = report.summary.split("\n").filter((line) => line.startsWith("#"));
+    expect(headings).toEqual(["## verbatra check summary"]);
+    expect(report.summary).toContain(
+      "| de:1 | k\\|1 ::stop-commands::x | error | icu:x,y | a\\|b ## Forged heading |",
+    );
+  });
+});

@@ -13,8 +13,12 @@ function escapeMarkdown(value) {
     .replace(/\r\n|\r|\n/g, " ");
 }
 
+function annotation(level, title, code, message) {
+  return `::${level} title=${escapeProperty(title)}::${escapeData(`[${code}] ${message}`)}`;
+}
+
 function errorAnnotation(title, code, message) {
-  return `::error title=${escapeProperty(title)}::${escapeData(`[${code}] ${message}`)}`;
+  return annotation("error", title, code, message);
 }
 
 function unwrapSummaryEnvelope(record) {
@@ -133,9 +137,134 @@ function driftDetail(entry) {
   return `${entry.missing} missing, ${entry.stale} stale`;
 }
 
-function checkRow(entry) {
+const QA_ANNOTATION_LIMIT = 50;
+const QA_SUMMARY_LIMIT = 100;
+
+function qaFindings(result) {
+  const findings = result.locales.flatMap((entry) =>
+    (entry.qa?.findings ?? []).map((finding) => ({ locale: entry.locale, finding })),
+  );
+  return [
+    ...findings.filter(({ finding }) => finding.severity === "error"),
+    ...findings.filter(({ finding }) => finding.severity !== "error"),
+  ];
+}
+
+function findingLevel(finding) {
+  return finding.severity === "error" ? "error" : "warning";
+}
+
+function findingDetails(finding, escape = String) {
+  return Array.isArray(finding.details) ? finding.details.map(escape).join(", ") : "";
+}
+
+function findingMessage(finding) {
+  const details = findingDetails(finding);
+  return details === "" ? finding.key : `${finding.key} (${details})`;
+}
+
+function qaAnnotations(result) {
+  const findings = qaFindings(result);
+  const annotations = findings
+    .slice(0, QA_ANNOTATION_LIMIT)
+    .map(({ locale, finding }) =>
+      annotation(
+        findingLevel(finding),
+        `verbatra qa: ${locale}`,
+        finding.reason,
+        findingMessage(finding),
+      ),
+    );
+  const omitted = findings.length - annotations.length;
+  if (omitted > 0) {
+    annotations.push(
+      `::notice title=verbatra qa::${omitted} more quality findings are not annotated. The job summary lists the first ${QA_SUMMARY_LIMIT}.`,
+    );
+  }
+  return annotations;
+}
+
+function qaFindingRow({ locale, finding }) {
+  return `| ${escapeMarkdown(locale)} | ${escapeMarkdown(finding.key)} | ${findingLevel(finding)} | ${escapeMarkdown(finding.reason)} | ${findingDetails(finding, escapeMarkdown)} |`;
+}
+
+function qaFindingLines(result) {
+  const findings = qaFindings(result);
+  if (findings.length === 0) {
+    return [];
+  }
+  const lines = [
+    "",
+    "Quality findings:",
+    "",
+    "| locale | key | severity | reason | details |",
+    "| --- | --- | --- | --- | --- |",
+    ...findings.slice(0, QA_SUMMARY_LIMIT).map(qaFindingRow),
+  ];
+  const omitted = findings.length - QA_SUMMARY_LIMIT;
+  if (omitted > 0) {
+    lines.push(
+      "",
+      `and ${omitted} more. Run verbatra check --qa locally for the full list.`,
+    );
+  }
+  return lines;
+}
+
+function qaSkippedSourceLines(qa) {
+  const skipped = qa.invalidSourceKeys ?? [];
+  if (skipped.length === 0) {
+    return [];
+  }
+  return [
+    "",
+    `Source keys the quality check skipped because the source is not valid ICU: ${previewKeys(skipped, escapeMarkdown)}`,
+  ];
+}
+
+function qaFailureLines(qa, exitCode) {
+  if (exitCode === 0 || (qa.errors === 0 && qa.warnings === 0)) {
+    return [];
+  }
+  return [
+    "",
+    `Step failed: the quality check found ${qa.errors} errors and ${qa.warnings} warnings. check --qa exits 1 on any error, and on any warning when qa-strict is set.`,
+  ];
+}
+
+function qaMarkdownLines(result, exitCode) {
+  if (result.qa === undefined) {
+    return [];
+  }
+  return [
+    ...qaFailureLines(result.qa, exitCode),
+    ...qaFindingLines(result),
+    ...qaSkippedSourceLines(result.qa),
+  ];
+}
+
+function checkRow(entry, withQa) {
   const status = entry.inSync ? "in sync" : "drifted";
-  return `| ${escapeMarkdown(entry.locale)} | ${status} | ${entry.missing} | ${entry.stale} | ${entry.upToDate} |`;
+  const qaCells = withQa ? ` ${entry.qa?.errors ?? 0} | ${entry.qa?.warnings ?? 0} |` : "";
+  return `| ${escapeMarkdown(entry.locale)} | ${status} | ${entry.missing} | ${entry.stale} | ${entry.upToDate} |${qaCells}`;
+}
+
+function checkTable(result) {
+  const withQa = result.qa !== undefined;
+  return [
+    withQa
+      ? "| locale | status | missing | stale | up to date | qa errors | qa warnings |"
+      : "| locale | status | missing | stale | up to date |",
+    withQa ? "| --- | --- | --- | --- | --- | --- | --- |" : "| --- | --- | --- | --- | --- |",
+    ...result.locales.map((entry) => checkRow(entry, withQa)),
+  ];
+}
+
+function checkAggregate(result, drifted) {
+  const counts = `${result.locales.length} locales: ${result.locales.length - drifted.length} in sync, ${drifted.length} drifted`;
+  return result.qa === undefined
+    ? counts
+    : `${counts}; quality check: ${result.qa.errors} errors, ${result.qa.warnings} warnings`;
 }
 
 function checkMarkdown(result, exitCode) {
@@ -143,11 +272,9 @@ function checkMarkdown(result, exitCode) {
   const lines = [
     "## verbatra check summary",
     "",
-    "| locale | status | missing | stale | up to date |",
-    "| --- | --- | --- | --- | --- |",
-    ...result.locales.map(checkRow),
+    ...checkTable(result),
     "",
-    `${result.locales.length} locales: ${result.locales.length - drifted.length} in sync, ${drifted.length} drifted`,
+    checkAggregate(result, drifted),
   ];
   if (exitCode !== 0 && drifted.length > 0) {
     lines.push(
@@ -158,10 +285,11 @@ function checkMarkdown(result, exitCode) {
       ...drifted.map((entry) => `- ${escapeMarkdown(entry.locale)}: ${driftDetail(entry)}`),
     );
   }
+  lines.push(...qaMarkdownLines(result, exitCode));
   return lines.join("\n");
 }
 
-function checkAnnotations(result, exitCode) {
+function driftAnnotations(result, exitCode) {
   if (exitCode === 0) {
     return [];
   }
@@ -170,6 +298,10 @@ function checkAnnotations(result, exitCode) {
     .map((entry) =>
       errorAnnotation(`verbatra check: ${entry.locale}`, "LOCALE_DRIFTED", driftDetail(entry)),
     );
+}
+
+function checkAnnotations(result, exitCode) {
+  return [...driftAnnotations(result, exitCode), ...qaAnnotations(result)];
 }
 
 function pendingDetail(entry, escape = String) {

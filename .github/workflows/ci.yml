@@ -207,6 +207,54 @@ jobs:
           echo "::error::action.yml accepted dry-run together with command: check; the input was silently ignored instead of failing loudly"
           exit 1
 
+      - name: Reject qa combined with a command other than check
+        id: qa-with-translate
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          working-directory: .github/fixtures/in-sync
+          dry-run: "true"
+          qa: "true"
+
+      - name: Assert qa combined with translate was rejected
+        if: steps.qa-with-translate.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted qa together with command: translate; the qa command guard is not working"
+          exit 1
+
+      - name: Reject qa-strict without qa
+        id: qa-strict-alone
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          qa-strict: "true"
+
+      - name: Assert qa-strict without qa was rejected rather than silently ignored
+        if: steps.qa-strict-alone.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted qa-strict without qa; the input was silently ignored instead of failing loudly"
+          exit 1
+
+      - name: Reject qa with a version below the quality check's minimum
+        id: qa-below-minimum
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.11.1
+          command: check
+          working-directory: .github/fixtures/in-sync
+          qa: "true"
+
+      - name: Assert qa with a version below its minimum was rejected
+        if: steps.qa-below-minimum.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted qa with version 0.11.1, which has no check --qa; the qa minimum-version guard is not working"
+          exit 1
+
       - name: Reject a version input below the minimum the action supports
         id: below-minimum
         continue-on-error: true
