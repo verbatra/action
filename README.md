@@ -396,7 +396,7 @@ This action is the CI surface of verbatra, not a separate tool. It wraps the sam
 
 | Where | What it is |
 | --- | --- |
-| [github.com/verbatra/verbatra](https://github.com/verbatra/verbatra) | The main project: the `@verbatra/cli` command-line tool, the `@verbatra/sdk` programmatic API, and the `@verbatra/studio` local dashboard. |
+| [github.com/verbatra/verbatra](https://github.com/verbatra/verbatra) | The main project: the `@verbatra/cli` command-line tool, the `@verbatra/sdk` programmatic API, the `@verbatra/studio` local dashboard, and the `@verbatra/mcp` stdio MCP server. |
 | [`@verbatra/cli` on npm](https://www.npmjs.com/package/@verbatra/cli) | The package this action installs and runs. |
 | [verbatra.kreitz-webdev.de](https://verbatra.kreitz-webdev.de) | The documentation site, including the [GitHub Action guide](https://verbatra.kreitz-webdev.de/docs/github-action) and the [CLI reference](https://verbatra.kreitz-webdev.de/docs/cli). |
 
