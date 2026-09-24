@@ -24,6 +24,18 @@ the same runner floor, because the action has pinned
 `actions/setup-node@820762786026740c76f36085b0efc47a31fe5020` (v7.0.0) since
 `v1.0.0` and that action runs on the `node24` runtime.
 
+### Unreleased
+
+No breaking change. Adds the `qa`, `qa-severity`, and `qa-strict` inputs, which
+run `verbatra check --qa` over every committed translation and turn each finding
+into an annotation, and the `needs-human` output, which is `"true"` when
+`translate` exits `3` in human-only mode. That exit passes the step instead of
+failing it. See [Check translation quality](#check-translation-quality) and
+[Human-only mode](#human-only-mode).
+
+Minimum runner: Actions Runner v2.327.1. Minimum `@verbatra/cli` for `qa` and for
+exit `3`: 0.12.0; every other input still works from 0.9.3.
+
 ### v1.2.0
 
 **Breaking.** The action now requires a recognized verbatra config directly
