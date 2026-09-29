@@ -52,6 +52,7 @@ env PATH="$stub_dir:$PATH" \
   DRY_RUN="false" \
   QA="false" \
   QA_STRICT="false" \
+  REQUIRE_REVIEWED="false" \
   SUMMARY_FILE="$work_dir/summary.json" \
   ERROR_FILE="$work_dir/error.txt" \
   GITHUB_OUTPUT="$work_dir/github-output.txt" \

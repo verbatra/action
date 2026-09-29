@@ -118,14 +118,14 @@ pull request.
   inherited" negative case). Each fixture's README states what it guards.
 
 The job also asserts that each input guard rejects rather than silently accepts: an
-unsupported `command`, a `dry-run`, `qa`, or `qa-strict` value other than
-`"true"` or `"false"`, `dry-run` combined with a read-only command, `qa`
-combined with a command other than `check`, `qa-severity` or `qa-strict`
-without `qa`, `qa` with a `version` below `0.12.0` (a `0.12.0-next.*` prerelease included, on
-purpose), a floating
-`version`, a `version` below the minimum the action supports, a `version` whose
-second line forges a workflow command, and a `working-directory` with no
-recognized verbatra config file directly inside it. If you add a guard to
+unsupported `command`, a `dry-run`, `qa`, `qa-strict`, or `require-reviewed`
+value other than `"true"` or `"false"`, `dry-run` combined with a read-only
+command, `qa` or `require-reviewed` combined with a command other than `check`,
+`qa-severity` or `qa-strict` without `qa`, `qa` or `require-reviewed` with a
+`version` below `0.12.0` (a `0.12.0-next.*` prerelease included, on purpose), a
+floating `version`, a `version` below the minimum the action supports, a
+`version` whose second line forges a workflow command, and a
+`working-directory` with no recognized verbatra config file directly inside it. If you add a guard to
 `action.yml`, add the matching rejection step and its assertion.
 
 Every `uses:` reference in this repository is pinned to a full 40-character
@@ -143,14 +143,17 @@ retired in favor of this single-line model; see
 
 ### Release checklist
 
-Before tagging a release that ships `qa` or the `needs-human` output, and only
-once `@verbatra/cli` `0.12.0` is on npm, add the positive self-tests the CI job
-cannot run yet, each pinned to `version: 0.12.0`:
+Before tagging a release that ships `qa`, `require-reviewed`, or the
+`needs-human` output, and only once `@verbatra/cli` `0.12.0` is on npm, add the
+positive self-tests the CI job cannot run yet, each pinned to `version: 0.12.0`:
 
 - `command: check` with `qa: "true"` against `.github/fixtures/in-sync`, which
   must pass the gate.
 - `command: check` with `qa: "true"` against a new fixture holding a committed
   translation that drops a placeholder, which must fail the step.
+- `command: check` with `require-reviewed: "true"` against a new fixture whose
+  committed `verbatra.provenance.json` holds a machine-written value that is not
+  approved, which must fail the step.
 - `translate` against a new fixture whose config sets `provider: { id: "none" }`
   and leaves a key unfilled, which must pass the step with the `needs-human`
   output set to `"true"`.

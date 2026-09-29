@@ -77,6 +77,16 @@ inputs:
       Requires qa. Must be "true" or "false"; any other value fails the step.
     required: false
     default: "false"
+  require-reviewed:
+    description: >-
+      Also fail the step while any machine-written translation is not approved in the
+      committed verbatra.provenance.json (maps to --require-reviewed). Applies only to the
+      check command; any other command fails the step. Each locale with unapproved keys
+      becomes an error annotation naming them. Keyless like check. Needs version 0.12.0 or
+      newer; an older version fails the step before installing the CLI. Must be "true" or
+      "false"; any other value fails the step.
+    required: false
+    default: "false"
   node-version:
     description: Node.js version to set up for running the CLI.
     required: false
@@ -110,6 +120,7 @@ runs:
         QA: ${{ inputs.qa }}
         QA_SEVERITY: ${{ inputs.qa-severity }}
         QA_STRICT: ${{ inputs.qa-strict }}
+        REQUIRE_REVIEWED: ${{ inputs.require-reviewed }}
         SUMMARY_FILE: ${{ runner.temp }}/verbatra-summary.json
         ERROR_FILE: ${{ runner.temp }}/verbatra-error.txt
       run: |
@@ -149,7 +160,7 @@ runs:
             exit 1
             ;;
         esac
-        for boolean_input in "dry-run:$DRY_RUN" "qa:$QA" "qa-strict:$QA_STRICT"; do
+        for boolean_input in "dry-run:$DRY_RUN" "qa:$QA" "qa-strict:$QA_STRICT" "require-reviewed:$REQUIRE_REVIEWED"; do
           case "${boolean_input#*:}" in
             true|false) ;;
             *)
@@ -174,6 +185,17 @@ runs:
           qa_minimum_version=0.12.0
           if version_below "$VERBATRA_VERSION" "$qa_minimum_version"; then
             echo "::error::the qa input needs version $qa_minimum_version or newer, because earlier releases of the CLI have no check --qa. Pin version to $qa_minimum_version or newer, or remove qa."
+            exit 1
+          fi
+        fi
+        if [ "$REQUIRE_REVIEWED" = "true" ]; then
+          if [ "$COMMAND" != "check" ]; then
+            echo "::error::the require-reviewed input applies only to the check command. Set command to check, or remove require-reviewed."
+            exit 1
+          fi
+          review_minimum_version=0.12.0
+          if version_below "$VERBATRA_VERSION" "$review_minimum_version"; then
+            echo "::error::the require-reviewed input needs version $review_minimum_version or newer, because earlier releases of the CLI have no check --require-reviewed. Pin version to $review_minimum_version or newer, or remove require-reviewed."
             exit 1
           fi
         fi
@@ -222,6 +244,7 @@ runs:
         if [ "$QA" = "true" ]; then args+=(--qa); fi
         if [ -n "$QA_SEVERITY" ]; then args+=(--severity "$QA_SEVERITY"); fi
         if [ "$QA_STRICT" = "true" ]; then args+=(--strict); fi
+        if [ "$REQUIRE_REVIEWED" = "true" ]; then args+=(--require-reviewed); fi
         npm exec --prefix "$scratch_dir" -- verbatra "${args[@]}" >"$SUMMARY_FILE" 2>"$ERROR_FILE"
         echo "exit_code=$?" >>"$GITHUB_OUTPUT"
         exit 0
