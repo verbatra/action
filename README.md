@@ -28,13 +28,20 @@ the same runner floor, because the action has pinned
 
 No breaking change. Adds the `qa`, `qa-severity`, and `qa-strict` inputs, which
 run `verbatra check --qa` over every committed translation and turn each finding
-into an annotation, and the `needs-human` output, which is `"true"` when
+into an annotation, the `require-reviewed` input, which runs
+`verbatra check --require-reviewed` and fails the step while a machine-written
+translation is not approved, and the `needs-human` output, which is `"true"` when
 `translate` exits `3` in human-only mode. That exit passes the step instead of
-failing it. See [Check translation quality](#check-translation-quality) and
+failing it. `check` now also warns about plurals that lack a CLDR plural category
+the target language uses, and a whole-run failure shows the CLI's `hint` as a
+next step and names the code of a wrapped error. See
+[Check translation quality](#check-translation-quality),
+[Require reviewed translations](#require-reviewed-translations), and
 [Human-only mode](#human-only-mode).
 
-Minimum runner: Actions Runner v2.327.1. Minimum `@verbatra/cli` for `qa` and for
-exit `3`: 0.12.0; every other input still works from 0.9.3.
+Minimum runner: Actions Runner v2.327.1. Minimum `@verbatra/cli` for `qa`,
+`require-reviewed`, and exit `3`: 0.12.0; every other input still works from
+0.9.3.
 
 ### v1.2.0
 
@@ -202,11 +209,13 @@ The `command` input selects which CLI command runs. All three report through the
 | `translate` with `dry-run: "true"` | no | no | translation could not be planned |
 | `check` | no | no | any locale has missing or stale keys |
 | `check` with `qa: "true"` | no | no | a locale is out of date, or a committed translation fails the quality check |
+| `check` with `require-reviewed: "true"` | no | no | a locale is out of date, or a machine-written translation is not approved |
 | `diff` | no | no | any locale has pending changes |
 
 - Use **`check`** as a pull-request gate: the smallest, fastest signal, with per-locale counts of missing, stale, and up-to-date keys.
 - Use **`diff`** for the same gate when a reviewer needs to see *which* keys are pending. It lists the key names per locale, split into missing and changed, and calls out orphaned keys (present in a target locale but no longer in the source) separately, since those never fail the step on their own.
 - Add **`qa: "true"`** to `check` to also review every committed translation, including ones typed by hand or merged from another tool. See [Check translation quality](#check-translation-quality).
+- Add **`require-reviewed: "true"`** to `check` to fail while machine-written translations wait for a person's approval. See [Require reviewed translations](#require-reviewed-translations).
 - Use **`translate --dry-run`** to preview the work a real run would do, in translate's own terms (translated, unchanged, integrity-withheld, and provider-failure counts), without writing anything.
 
 ### Check translation quality
@@ -223,7 +232,23 @@ Set `qa: "true"` together with `command: check` to run `verbatra check --qa`, wh
 
 Each finding becomes an annotation naming the locale, the key, and the reason: an `::error::` for a value the integrity gate would refuse, and a `::warning::` for a review reason. The job summary adds `qa errors` and `qa warnings` columns and a findings table. The step fails on any error finding. Set `qa-strict: "true"` to fail on warnings too, or `qa-severity: error` to report errors only. The CLI rejects any other `qa-severity` value, and rejects `qa-severity: error` together with `qa-strict`, with exit code 2.
 
-The job summary's findings table is the full view: it lists every finding (up to 1000, to keep the summary under GitHub's size limit). Annotations are only a preview, because GitHub shows at most 10 error, 10 warning, and 10 notice annotations per step ([annotation limits](https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations)). The action keeps drift errors first, then quality errors, then warnings, and adds one notice counting what it left out.
+The job summary's findings table is the full view: it lists every finding (up to 1000, to keep the summary under GitHub's size limit). Annotations are only a preview, because GitHub shows at most 10 error, 10 warning, and 10 notice annotations per step ([annotation limits](https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations)). The action keeps drift errors first, then review errors, then quality errors, then warnings, and adds one notice counting what it left out.
+
+Every `check` also lists the plurals that lack a CLDR plural category their target language uses, such as a Polish plural with only `one` and `other`, as one `PLURAL_CATEGORIES_INCOMPLETE` warning per locale. It never fails a plain `check`; with `qa-strict` it fails the step like any other warning.
+
+### Require reviewed translations
+
+Set `require-reviewed: "true"` together with `command: check` to run `verbatra check --require-reviewed`, which fails the step while any machine-written translation (origin `machine`, `memory`, `fuzzy`, or `agent`) is not approved in the committed `verbatra.provenance.json`, where Studio and the MCP review tools record decisions. It is read-only and keyless like `check`, combines with `qa`, and needs `version` `0.12.0` or newer; the action rejects it with an older version or a `0.12.0` prerelease before installing anything, as it does `qa`.
+
+```yaml
+      - uses: verbatra/action@v1
+        with:
+          version: 0.12.0
+          command: check
+          require-reviewed: "true"
+```
+
+Each locale with unapproved keys becomes one `REVIEW_REQUIRED` error annotation naming them, and the job summary adds an `unreviewed` column. A `verbatra.provenance.json` that is corrupt or from a newer verbatra fails the gate with one `REVIEW_STATE_UNREADABLE` annotation, since no decision can be read.
 
 ## Inputs
 
@@ -297,6 +322,15 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     # Requires qa. Must be "true" or "false"; any other value fails the step.
     # Default: false
     qa-strict: "false"
+
+    # Also fail the step while any machine-written translation is not approved in the
+    # committed verbatra.provenance.json (maps to --require-reviewed). Applies only to the
+    # check command; any other command fails the step. Each locale with unapproved keys
+    # becomes an error annotation naming them. Keyless like check. Needs version 0.12.0 or
+    # newer; an older version fails the step before installing the CLI. Must be "true" or
+    # "false"; any other value fails the step.
+    # Default: false
+    require-reviewed: "false"
 
     # Node.js version to set up for running the CLI.
     # Default: 24
@@ -379,7 +413,7 @@ Set only the keys your configured provider needs, and each value must be a `${{ 
 
 ## Job summary and annotations
 
-Every run writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts table, or a whole-run failure heading) and annotates failures with `::error::` workflow commands, one per affected locale or one for a whole-run failure. A `check` with `qa` adds one annotation per quality finding, `::warning::` for a review reason. GitHub shows at most 10 annotations of each severity per step, so past that the action adds one notice counting the rest, and the job summary remains the full report. The job then exits with the CLI's own exit code, and it does so only after the annotations and the summary have been emitted. The one exception is `translate` exiting `3`, which passes the step; see [Human-only mode](#human-only-mode).
+Every run writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts table, or a whole-run failure heading) and annotates failures with `::error::` workflow commands, one per affected locale or one for a whole-run failure. A `check` with `qa` adds one annotation per quality finding, `::warning::` for a review reason. A whole-run failure, such as a locale the provider does not support (`LOCALE_UNSUPPORTED_BY_PROVIDER`, exit `2`), shows the error code, the code of the error it wraps as `(cause: MISSING_API_KEY)`, and, with a CLI that reports one, the `hint` from its JSON error record as a `Next step:` in both the annotation and the summary. Every code is explained on [Error codes](https://verbatra.kreitz-webdev.de/docs/error-codes), and every exit code on [Exit codes and JSON output](https://verbatra.kreitz-webdev.de/docs/cli/output#exit-codes). GitHub shows at most 10 annotations of each severity per step, so past that the action adds one notice counting the rest, and the job summary remains the full report. The job then exits with the CLI's own exit code, and it does so only after the annotations and the summary have been emitted. The one exception is `translate` exiting `3`, which passes the step; see [Human-only mode](#human-only-mode).
 
 For `translate`, a locale's status is `ok`, `partial`, or `failed`. A `partial` locale was written, but some of its keys were withheld by the integrity gate, a provider failure, or the token budget, and the CLI exits 1 for it just as for a failed one. It gets its own `LOCALE_PARTIAL` annotation naming how many keys landed and which were withheld, a `partial` value in the status column, a line under "Partial locales" in the summary, and its own count on the aggregate line (`3 locales: 1 succeeded, 1 partial, 1 failed`). A failed locale with no error of its own, because every key was withheld, names its withheld keys the same way.
 
@@ -425,7 +459,7 @@ The hosted documentation site at [verbatra.kreitz-webdev.de](https://verbatra.kr
 
 ## Contributing
 
-The `qa` input and the `needs-human` output are covered by unit tests and by guard self-tests, but not yet by a self-test against a real CLI, because they need `@verbatra/cli` `0.12.0`. Those tests are on the [release checklist](./CONTRIBUTING.md#release-checklist).
+The `qa` and `require-reviewed` inputs and the `needs-human` output are covered by unit tests and by guard self-tests, but not yet by a self-test against a real CLI, because they need `@verbatra/cli` `0.12.0`. Those tests are on the [release checklist](./CONTRIBUTING.md#release-checklist).
 
 Contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md) first; they follow the main project's guidelines, with the differences this repository actually has (npm rather than pnpm, no changesets, no commit hook). Commits here follow Conventional Commits. Run `npm ci && npm test` before opening a pull request; the same suite runs in CI on Node 22.14.0 and 24, alongside a job that runs the action against itself.
 

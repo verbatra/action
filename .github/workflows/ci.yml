@@ -318,6 +318,70 @@ jobs:
           echo "::error::action.yml accepted qa with version 0.12.0-next.0; a prerelease ranks below its release, so the qa minimum-version guard must reject it"
           exit 1
 
+      - name: Reject a require-reviewed input that is not "true" or "false"
+        id: require-reviewed-not-boolean
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          require-reviewed: "yes"
+
+      - name: Assert the non-boolean require-reviewed input was rejected rather than read as false
+        if: steps.require-reviewed-not-boolean.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted require-reviewed: yes; the boolean input guard is not working"
+          exit 1
+
+      - name: Reject require-reviewed combined with a command other than check
+        id: require-reviewed-with-diff
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: diff
+          working-directory: .github/fixtures/in-sync
+          require-reviewed: "true"
+
+      - name: Assert require-reviewed combined with diff was rejected
+        if: steps.require-reviewed-with-diff.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted require-reviewed together with command: diff; the require-reviewed command guard is not working"
+          exit 1
+
+      - name: Reject require-reviewed with a version below the review gate's minimum
+        id: require-reviewed-below-minimum
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.11.1
+          command: check
+          working-directory: .github/fixtures/in-sync
+          require-reviewed: "true"
+
+      - name: Assert require-reviewed with a version below its minimum was rejected
+        if: steps.require-reviewed-below-minimum.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted require-reviewed with version 0.11.1, which has no check --require-reviewed; the require-reviewed minimum-version guard is not working"
+          exit 1
+
+      - name: Reject require-reviewed with a prerelease of the review gate's minimum version
+        id: require-reviewed-prerelease
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0-next.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          require-reviewed: "true"
+
+      - name: Assert require-reviewed with a 0.12.0 prerelease was rejected, as semver ranks it below 0.12.0
+        if: steps.require-reviewed-prerelease.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted require-reviewed with version 0.12.0-next.0; a prerelease ranks below its release, so the require-reviewed minimum-version guard must reject it"
+          exit 1
+
       - name: Reject a version input below the minimum the action supports
         id: below-minimum
         continue-on-error: true
@@ -380,6 +444,9 @@ jobs:
 
       - name: Assert the config guard passes the resolved config path to the CLI via --config
         run: bash ./assert-config-guard-passthrough.sh
+
+      - name: Assert require-reviewed passes --require-reviewed to the CLI exactly when it is true
+        run: bash ./assert-require-reviewed-passthrough.sh
 
       - name: Assert an absolute config-path is used as-is, not re-resolved against working-directory
         run: bash ./assert-config-guard-absolute-path.sh

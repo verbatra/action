@@ -45,6 +45,7 @@ env VERBATRA_VERSION="0.9.3" \
   DRY_RUN="false" \
   QA="false" \
   QA_STRICT="false" \
+  REQUIRE_REVIEWED="false" \
   SUMMARY_FILE="$summary_file" \
   ERROR_FILE="$error_file" \
   GITHUB_OUTPUT="$github_output" \
