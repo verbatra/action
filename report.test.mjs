@@ -3,6 +3,7 @@ import {
   buildReport,
   extractCliError,
   NEEDS_HUMAN_EXIT_CODE,
+  parseErrorEnvelope,
   parseSummaryJson,
   resolveExitCode,
   WIRING_FAILURE_EXIT_CODE,
@@ -1052,7 +1053,7 @@ describe("buildReport: check --qa findings", () => {
       qaStrict: true,
     });
     expect(report.summary).toContain(
-      "Step failed: the quality check found 0 errors and 1 warnings. check --qa with qa-strict exits 1 on any error or warning.",
+      "Step failed: the quality check found 0 errors, 1 warnings, and 0 incomplete plurals. check --qa with qa-strict exits 1 on any error, warning, or incomplete plural.",
     );
   });
 
@@ -1279,5 +1280,311 @@ describe("buildReport: translate exit 3 is work for a person, not a failure", ()
     const report = buildReport(s, 3, "", "translate");
     expect(report.annotations[0]).toContain("unfilled: x|y%0A::stop-commands::z");
     expect(report.summary).toContain("- de: 1 key needs a human translation (unfilled: x\\|y ::stop-commands::z)");
+  });
+});
+
+function reviewResult(localeKeys, over = {}) {
+  const locales = localeKeys.map(([name, keys]) =>
+    checkLocale({ locale: name, review: { unreviewed: keys } }),
+  );
+  const unreviewed = localeKeys.reduce((total, [, keys]) => total + keys.length, 0);
+  const review =
+    unreviewed === 0
+      ? { reviewed: true, unreviewed: 0 }
+      : { reviewed: false, unreviewed, code: "REVIEW_REQUIRED" };
+  return checkResult({ locales, review, ...over });
+}
+
+describe("buildReport: check --require-reviewed", () => {
+  it("annotates each locale with unapproved keys as an error naming them", () => {
+    const report = buildReport(
+      reviewResult([
+        ["de", ["checkout.title", "checkout.total"]],
+        ["fr", []],
+      ]),
+      1,
+      "",
+      "check",
+    );
+    expect(report.exitStatus).toBe(1);
+    expect(report.annotations).toEqual([
+      "::error title=verbatra review%3A de::[REVIEW_REQUIRED] 2 machine-written translations are not approved: checkout.title, checkout.total",
+    ]);
+  });
+
+  it("adds an unreviewed column and explains the failure in the summary", () => {
+    const summaryText = buildReport(
+      reviewResult([
+        ["de", ["checkout.title"]],
+        ["fr", []],
+      ]),
+      1,
+      "",
+      "check",
+    ).summary;
+    expect(summaryText).toContain("| locale | status | missing | stale | up to date | unreviewed |");
+    expect(summaryText).toContain("| de | in sync | 0 | 0 | 2 | 1 |");
+    expect(summaryText).toContain("| fr | in sync | 0 | 0 | 2 | 0 |");
+    expect(summaryText).toContain("2 locales: 2 in sync, 0 drifted; review: 1 unreviewed");
+    expect(summaryText).toContain(
+      "Step failed: [REVIEW_REQUIRED] 1 machine-written translations are not approved in verbatra.provenance.json.",
+    );
+    expect(summaryText).toContain(
+      "- de: 1 machine-written translation is not approved: checkout.title",
+    );
+  });
+
+  it("a reviewed project renders the column and a passing aggregate, and no annotation", () => {
+    const report = buildReport(reviewResult([["de", []]]), 0, "", "check");
+    expect(report.annotations).toEqual([]);
+    expect(report.summary).toContain(
+      "review: every machine-written translation approved",
+    );
+    expect(report.summary).not.toContain("Step failed");
+  });
+
+  it("an unreadable review state is one whole-project error, not a per-locale one", () => {
+    const result = checkResult({
+      locales: [checkLocale({ review: { unreviewed: [] } })],
+      review: { reviewed: false, unreviewed: 0, code: "REVIEW_STATE_UNREADABLE" },
+    });
+    const report = buildReport(result, 1, "", "check");
+    expect(report.annotations).toHaveLength(1);
+    expect(report.annotations[0]).toMatch(
+      /^::error title=verbatra review::\[REVIEW_STATE_UNREADABLE\] verbatra\.provenance\.json is corrupt/,
+    );
+    expect(report.summary).toContain("Step failed: [REVIEW_STATE_UNREADABLE]");
+  });
+
+  it("a failed gate without a code falls back to REVIEW_REQUIRED", () => {
+    const result = reviewResult([["de", ["a"]]]);
+    const withoutCode = { ...result, review: { reviewed: false, unreviewed: 1 } };
+    const report = buildReport(withoutCode, 1, "", "check");
+    expect(report.annotations[0]).toContain("[REVIEW_REQUIRED]");
+    expect(report.summary).toContain("Step failed: [REVIEW_REQUIRED]");
+  });
+
+  it("a locale without its own review block counts zero unreviewed", () => {
+    const result = checkResult({
+      locales: [checkLocale()],
+      review: { reviewed: true, unreviewed: 0 },
+    });
+    expect(buildReport(result, 0, "", "check").summary).toContain("| de | in sync | 0 | 0 | 2 | 0 |");
+  });
+
+  it("drift errors stay ahead of review errors, and review errors ahead of quality errors", () => {
+    const result = {
+      ...qaResult([["de", [placeholderError]]]),
+      inSync: false,
+    };
+    result.locales = [
+      { ...result.locales[0], inSync: false, missing: 1, review: { unreviewed: ["a"] } },
+    ];
+    result.review = { reviewed: false, unreviewed: 1, code: "REVIEW_REQUIRED" };
+    const annotations = buildReport(result, 1, "", "check").annotations;
+    expect(annotations.map((line) => line.match(/\[([A-Z_a-z]+)\]/)[1])).toEqual([
+      "LOCALE_DRIFTED",
+      "REVIEW_REQUIRED",
+      "placeholder",
+    ]);
+  });
+
+  it("an untrusted key cannot forge a workflow command or break the summary list", () => {
+    const report = buildReport(reviewResult([["de", ["x\n::stop-commands::t|y"]]]), 1, "", "check");
+    expect(report.annotations[0]).not.toContain("\n");
+    expect(report.annotations[0]).toContain("x%0A::stop-commands::t|y");
+    expect(report.summary).toContain("- de: 1 machine-written translation is not approved: x ::stop-commands::t\\|y");
+  });
+});
+
+const cartPlural = {
+  code: "PLURAL_CATEGORIES_INCOMPLETE",
+  key: "cart",
+  argument: "count",
+  ruleType: "cardinal",
+  missing: ["few", "many"],
+};
+const filesPlural = {
+  code: "PLURAL_CATEGORIES_INCOMPLETE",
+  key: "files",
+  ruleType: "cardinal",
+  missing: ["few", "many"],
+};
+
+describe("buildReport: check reports incomplete plurals as warnings", () => {
+  it("warns once per locale on a plain check, without failing it", () => {
+    const report = buildReport(
+      checkResult({
+        locales: [
+          checkLocale({ locale: "pl", incompletePlurals: [cartPlural, filesPlural] }),
+          checkLocale({ locale: "de", incompletePlurals: [] }),
+        ],
+      }),
+      0,
+      "",
+      "check",
+    );
+    expect(report.exitStatus).toBe(0);
+    expect(report.annotations).toEqual([
+      "::warning title=verbatra check%3A pl::[PLURAL_CATEGORIES_INCOMPLETE] 2 plurals lack CLDR plural categories the language uses: cart {count} (missing few, many), files (missing few, many)",
+    ]);
+    expect(report.summary).toContain(
+      "Plurals missing CLDR categories, a warning that fails the step only with qa-strict:",
+    );
+    expect(report.summary).toContain(
+      "- pl: 2 plurals lack CLDR plural categories the language uses: cart {count} (missing few, many), files (missing few, many)",
+    );
+    expect(report.summary).not.toContain("Step failed");
+  });
+
+  it("uses the singular for one plural and renders nothing when every plural is complete", () => {
+    const one = buildReport(
+      checkResult({ locales: [checkLocale({ incompletePlurals: [filesPlural] })] }),
+      0,
+      "",
+      "check",
+    );
+    expect(one.annotations[0]).toContain("1 plural lacks CLDR plural categories");
+
+    const none = buildReport(checkResult({ locales: [checkLocale()] }), 0, "", "check");
+    expect(none.annotations).toEqual([]);
+    expect(none.summary).not.toContain("Plurals missing");
+  });
+
+  it("explains a qa-strict failure caused only by an incomplete plural", () => {
+    const result = qaResult([["pl", []]]);
+    result.locales = [{ ...result.locales[0], incompletePlurals: [filesPlural] }];
+    const report = buildReport(result, 1, "", "check", { qaStrict: true });
+    expect(report.exitStatus).toBe(1);
+    expect(report.summary).toContain(
+      "Step failed: the quality check found 0 errors, 0 warnings, and 1 incomplete plurals.",
+    );
+  });
+
+  it("does not blame an incomplete plural without qa-strict", () => {
+    const result = qaResult([["pl", []]]);
+    result.locales = [{ ...result.locales[0], incompletePlurals: [filesPlural] }];
+    expect(buildReport(result, 0, "", "check").summary).not.toContain("Step failed");
+  });
+
+  it("tolerates a plural record without a missing list", () => {
+    const report = buildReport(
+      checkResult({ locales: [checkLocale({ incompletePlurals: [{ key: "k" }] })] }),
+      0,
+      "",
+      "check",
+    );
+    expect(report.annotations[0]).toContain("k (missing )");
+  });
+
+  it("an untrusted plural key cannot forge a workflow command or break the summary", () => {
+    const report = buildReport(
+      checkResult({
+        locales: [checkLocale({ incompletePlurals: [{ ...filesPlural, key: "a\n## h|b" }] })],
+      }),
+      0,
+      "",
+      "check",
+    );
+    expect(report.annotations[0]).toContain("a%0A## h|b");
+    expect(report.summary).toContain("a ## h\\|b");
+    expect(report.summary).not.toContain("\n## h");
+  });
+});
+
+describe("parseErrorEnvelope: the ok false record a --json run prints", () => {
+  it("reads code, message, causeCode, and hint", () => {
+    const stdout = JSON.stringify({
+      ok: false,
+      version: 1,
+      command: "translate",
+      code: "PROVIDER_CONSTRUCTION_FAILED",
+      message: "could not construct the provider",
+      causeCode: "MISSING_API_KEY",
+      hint: "Set GEMINI_API_KEY in the environment or in a .env file in the project directory.",
+    });
+    expect(parseErrorEnvelope(stdout)).toEqual({
+      code: "PROVIDER_CONSTRUCTION_FAILED",
+      message: "could not construct the provider",
+      causeCode: "MISSING_API_KEY",
+      hint: "Set GEMINI_API_KEY in the environment or in a .env file in the project directory.",
+    });
+  });
+
+  it("leaves the optional fields undefined when absent or not strings", () => {
+    const stdout = JSON.stringify({ ok: false, code: "CONFIG_INVALID", hint: 3 });
+    expect(parseErrorEnvelope(stdout)).toEqual({
+      code: "CONFIG_INVALID",
+      message: "",
+      causeCode: undefined,
+      hint: undefined,
+    });
+  });
+
+  it("returns null for empty, unparseable, successful, or code-less output", () => {
+    expect(parseErrorEnvelope("")).toBeNull();
+    expect(parseErrorEnvelope(undefined)).toBeNull();
+    expect(parseErrorEnvelope("{not json")).toBeNull();
+    expect(parseErrorEnvelope("null")).toBeNull();
+    expect(parseErrorEnvelope(JSON.stringify({ ok: true, result: {} }))).toBeNull();
+    expect(parseErrorEnvelope(JSON.stringify({ ok: false, message: "m" }))).toBeNull();
+    expect(parseErrorEnvelope(JSON.stringify({ ok: false, code: "" }))).toBeNull();
+  });
+});
+
+describe("buildReport: a whole-run error envelope surfaces its hint and cause", () => {
+  const envelope = {
+    code: "LOCALE_UNSUPPORTED_BY_PROVIDER",
+    message: "deepl does not support the locale xx",
+    causeCode: undefined,
+    hint: "Leave the locale out with --locales, or map it in provider.options.localeMap.",
+  };
+
+  it("adds the next step to the annotation and the summary", () => {
+    const report = buildReport(null, 2, "verbatra: error [OTHER] ignored", "translate", {
+      errorEnvelope: envelope,
+    });
+    expect(report.exitStatus).toBe(2);
+    expect(report.annotations).toEqual([
+      "::error title=verbatra::[LOCALE_UNSUPPORTED_BY_PROVIDER] deepl does not support the locale xx Next step: Leave the locale out with --locales, or map it in provider.options.localeMap.",
+    ]);
+    expect(report.summary).toContain(
+      "[LOCALE_UNSUPPORTED_BY_PROVIDER] deepl does not support the locale xx",
+    );
+    expect(report.summary).toContain(
+      "Next step: Leave the locale out with --locales, or map it in provider.options.localeMap.",
+    );
+  });
+
+  it("names the wrapped cause code the way the stderr line does", () => {
+    const report = buildReport(null, 2, "", "translate", {
+      errorEnvelope: {
+        code: "PROVIDER_CONSTRUCTION_FAILED",
+        message: "no key",
+        causeCode: "MISSING_API_KEY",
+        hint: undefined,
+      },
+    });
+    expect(report.annotations[0]).toBe(
+      "::error title=verbatra::[PROVIDER_CONSTRUCTION_FAILED] no key (cause: MISSING_API_KEY)",
+    );
+    expect(report.summary).not.toContain("Next step");
+  });
+
+  it("a null envelope keeps the stderr path", () => {
+    const report = buildReport(null, 2, "verbatra: error [CONFIG_INVALID] bad", "check", {
+      errorEnvelope: null,
+    });
+    expect(report.annotations[0]).toContain("[CONFIG_INVALID] bad");
+  });
+
+  it("an untrusted hint cannot forge a workflow command or inject a heading", () => {
+    const report = buildReport(null, 2, "", "translate", {
+      errorEnvelope: { ...envelope, hint: "x\n::stop-commands::t\n## h|i" },
+    });
+    expect(report.annotations).toHaveLength(1);
+    expect(report.annotations[0]).toContain("Next step: x%0A::stop-commands::t%0A## h|i");
+    expect(report.summary).toContain("Next step: x ::stop-commands::t ## h\\|i");
+    expect(report.summary).not.toContain("\n## h");
   });
 });

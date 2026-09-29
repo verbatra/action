@@ -40,6 +40,35 @@ export function parseSummaryJson(stdout) {
   }
 }
 
+function optionalString(value) {
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
+
+export function parseErrorEnvelope(stdout) {
+  const trimmed = String(stdout ?? "").trim();
+  if (trimmed === "") {
+    return null;
+  }
+  let record;
+  try {
+    record = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+  if (record === null || typeof record !== "object" || record.ok !== false) {
+    return null;
+  }
+  if (typeof record.code !== "string" || record.code === "") {
+    return null;
+  }
+  return {
+    code: record.code,
+    message: String(record.message ?? ""),
+    causeCode: optionalString(record.causeCode),
+    hint: optionalString(record.hint),
+  };
+}
+
 export function extractCliError(stderrText) {
   const match = String(stderrText ?? "").match(/error \[([^\]]+)\] (.*)/);
   if (match === null) {
@@ -211,19 +240,25 @@ function qaSkippedSourceLines(qa) {
   ];
 }
 
-function qaFailedStep(qa, qaStrict) {
-  return qa.errors > 0 || (qaStrict && qa.warnings > 0);
+function incompletePluralCount(result) {
+  return result.locales.reduce((total, entry) => total + (entry.incompletePlurals ?? []).length, 0);
 }
 
-function qaFailureLines(qa, exitCode, qaStrict) {
-  if (exitCode === 0 || !qaFailedStep(qa, qaStrict)) {
+function qaFailedStep(qa, plurals, qaStrict) {
+  return qa.errors > 0 || (qaStrict && (qa.warnings > 0 || plurals > 0));
+}
+
+function qaFailureLines(result, exitCode, qaStrict) {
+  const qa = result.qa;
+  const plurals = incompletePluralCount(result);
+  if (exitCode === 0 || !qaFailedStep(qa, plurals, qaStrict)) {
     return [];
   }
   const found = qaStrict
-    ? `${qa.errors} errors and ${qa.warnings} warnings`
+    ? `${qa.errors} errors, ${qa.warnings} warnings, and ${plurals} incomplete plurals`
     : `${qa.errors} errors`;
   const rule = qaStrict
-    ? "check --qa with qa-strict exits 1 on any error or warning."
+    ? "check --qa with qa-strict exits 1 on any error, warning, or incomplete plural."
     : "check --qa exits 1 on any error.";
   return ["", `Step failed: the quality check found ${found}. ${rule}`];
 }
@@ -233,34 +268,155 @@ function qaMarkdownLines(result, exitCode, qaStrict) {
     return [];
   }
   return [
-    ...qaFailureLines(result.qa, exitCode, qaStrict),
+    ...qaFailureLines(result, exitCode, qaStrict),
     ...qaFindingLines(result),
     ...qaSkippedSourceLines(result.qa),
   ];
 }
 
-function checkRow(entry, withQa) {
-  const status = entry.inSync ? "in sync" : "drifted";
-  const qaCells = withQa ? ` ${entry.qa?.errors ?? 0} | ${entry.qa?.warnings ?? 0} |` : "";
-  return `| ${escapeMarkdown(entry.locale)} | ${status} | ${entry.missing} | ${entry.stale} | ${entry.upToDate} |${qaCells}`;
+function pluralDetail(plural) {
+  const argument = typeof plural.argument === "string" ? ` {${plural.argument}}` : "";
+  return `${plural.key}${argument} (missing ${(plural.missing ?? []).join(", ")})`;
 }
 
-function checkTable(result) {
-  const withQa = result.qa !== undefined;
+function incompletePluralLocales(result) {
+  return result.locales.filter((entry) => (entry.incompletePlurals ?? []).length > 0);
+}
+
+function incompletePluralMessage(entry, escape = String) {
+  const plurals = entry.incompletePlurals;
+  const noun = plurals.length === 1 ? "plural lacks" : "plurals lack";
+  const details = previewKeys(plurals.map(pluralDetail), escape);
+  return `${plurals.length} ${noun} CLDR plural categories the language uses: ${details}`;
+}
+
+function incompletePluralAnnotations(result) {
+  return incompletePluralLocales(result).map((entry) =>
+    annotation(
+      "warning",
+      `verbatra check: ${entry.locale}`,
+      "PLURAL_CATEGORIES_INCOMPLETE",
+      incompletePluralMessage(entry),
+    ),
+  );
+}
+
+function incompletePluralLines(result) {
+  const locales = incompletePluralLocales(result);
+  if (locales.length === 0) {
+    return [];
+  }
   return [
-    withQa
-      ? "| locale | status | missing | stale | up to date | qa errors | qa warnings |"
-      : "| locale | status | missing | stale | up to date |",
-    withQa ? "| --- | --- | --- | --- | --- | --- | --- |" : "| --- | --- | --- | --- | --- |",
-    ...result.locales.map((entry) => checkRow(entry, withQa)),
+    "",
+    "Plurals missing CLDR categories, a warning that fails the step only with qa-strict:",
+    ...locales.map(
+      (entry) =>
+        `- ${escapeMarkdown(entry.locale)}: ${incompletePluralMessage(entry, escapeMarkdown)}`,
+    ),
   ];
 }
 
+const REVIEW_STATE_UNREADABLE = "REVIEW_STATE_UNREADABLE";
+
+function reviewFailed(result) {
+  return result.review !== undefined && result.review.reviewed === false;
+}
+
+function unreviewedLocales(result) {
+  return result.locales.filter((entry) => (entry.review?.unreviewed ?? []).length > 0);
+}
+
+function unreviewedMessage(entry, escape = String) {
+  const keys = entry.review.unreviewed;
+  const noun = keys.length === 1 ? "translation is" : "translations are";
+  return `${keys.length} machine-written ${noun} not approved: ${previewKeys(keys, escape)}`;
+}
+
+const UNREADABLE_REVIEW_MESSAGE =
+  "verbatra.provenance.json is corrupt or was written by a newer verbatra, so no review decision can be read and the review gate fails.";
+
+function reviewAnnotations(result) {
+  if (!reviewFailed(result)) {
+    return [];
+  }
+  if (result.review.code === REVIEW_STATE_UNREADABLE) {
+    return [errorAnnotation("verbatra review", REVIEW_STATE_UNREADABLE, UNREADABLE_REVIEW_MESSAGE)];
+  }
+  const code = result.review.code ?? "REVIEW_REQUIRED";
+  return unreviewedLocales(result).map((entry) =>
+    errorAnnotation(`verbatra review: ${entry.locale}`, code, unreviewedMessage(entry)),
+  );
+}
+
+function reviewMarkdownLines(result) {
+  if (!reviewFailed(result)) {
+    return [];
+  }
+  if (result.review.code === REVIEW_STATE_UNREADABLE) {
+    return ["", `Step failed: [${REVIEW_STATE_UNREADABLE}] ${UNREADABLE_REVIEW_MESSAGE}`];
+  }
+  const code = escapeMarkdown(result.review.code ?? "REVIEW_REQUIRED");
+  return [
+    "",
+    `Step failed: [${code}] ${result.review.unreviewed} machine-written translations are not approved in verbatra.provenance.json. check --require-reviewed exits 1 until a person approves each one.`,
+    "",
+    "Unreviewed translations:",
+    ...unreviewedLocales(result).map(
+      (entry) => `- ${escapeMarkdown(entry.locale)}: ${unreviewedMessage(entry, escapeMarkdown)}`,
+    ),
+  ];
+}
+
+function checkColumns(result) {
+  const columns = [
+    ["locale", (entry) => escapeMarkdown(entry.locale)],
+    ["status", (entry) => (entry.inSync ? "in sync" : "drifted")],
+    ["missing", (entry) => entry.missing],
+    ["stale", (entry) => entry.stale],
+    ["up to date", (entry) => entry.upToDate],
+  ];
+  if (result.qa !== undefined) {
+    columns.push(
+      ["qa errors", (entry) => entry.qa?.errors ?? 0],
+      ["qa warnings", (entry) => entry.qa?.warnings ?? 0],
+    );
+  }
+  if (result.review !== undefined) {
+    columns.push(["unreviewed", (entry) => (entry.review?.unreviewed ?? []).length]);
+  }
+  return columns;
+}
+
+function tableRow(cells) {
+  return `| ${cells.join(" | ")} |`;
+}
+
+function checkTable(result) {
+  const columns = checkColumns(result);
+  return [
+    tableRow(columns.map(([label]) => label)),
+    tableRow(columns.map(() => "---")),
+    ...result.locales.map((entry) => tableRow(columns.map(([, cell]) => cell(entry)))),
+  ];
+}
+
+function reviewAggregate(review) {
+  return review.reviewed
+    ? "review: every machine-written translation approved"
+    : `review: ${review.unreviewed} unreviewed`;
+}
+
 function checkAggregate(result, drifted) {
-  const counts = `${result.locales.length} locales: ${result.locales.length - drifted.length} in sync, ${drifted.length} drifted`;
-  return result.qa === undefined
-    ? counts
-    : `${counts}; quality check: ${result.qa.errors} errors, ${result.qa.warnings} warnings`;
+  const parts = [
+    `${result.locales.length} locales: ${result.locales.length - drifted.length} in sync, ${drifted.length} drifted`,
+  ];
+  if (result.qa !== undefined) {
+    parts.push(`quality check: ${result.qa.errors} errors, ${result.qa.warnings} warnings`);
+  }
+  if (result.review !== undefined) {
+    parts.push(reviewAggregate(result.review));
+  }
+  return parts.join("; ");
 }
 
 function checkMarkdown(result, exitCode, options = {}) {
@@ -281,7 +437,11 @@ function checkMarkdown(result, exitCode, options = {}) {
       ...drifted.map((entry) => `- ${escapeMarkdown(entry.locale)}: ${driftDetail(entry)}`),
     );
   }
-  lines.push(...qaMarkdownLines(result, exitCode, options.qaStrict === true));
+  lines.push(
+    ...reviewMarkdownLines(result),
+    ...qaMarkdownLines(result, exitCode, options.qaStrict === true),
+    ...incompletePluralLines(result),
+  );
   return lines.join("\n");
 }
 
@@ -297,7 +457,12 @@ function driftAnnotations(result, exitCode) {
 }
 
 function checkAnnotations(result, exitCode) {
-  return [...driftAnnotations(result, exitCode), ...qaAnnotations(result)];
+  return [
+    ...driftAnnotations(result, exitCode),
+    ...reviewAnnotations(result),
+    ...qaAnnotations(result),
+    ...incompletePluralAnnotations(result),
+  ];
 }
 
 function pendingDetail(entry, escape = String) {
@@ -457,39 +622,59 @@ function resolveRenderer(command) {
   return Object.hasOwn(RENDERERS, command) ? RENDERERS[command] : RENDERERS.translate;
 }
 
-function resolveWholeRunError(stderrText, genericMessage) {
-  const cliError = extractCliError(stderrText);
+function envelopeError(envelope) {
+  const cause = envelope.causeCode === undefined ? "" : ` (cause: ${envelope.causeCode})`;
+  return { code: envelope.code, message: `${envelope.message}${cause}`, hint: envelope.hint };
+}
+
+function resolveWholeRunError(stderrText, genericMessage, errorEnvelope) {
+  const cliError =
+    errorEnvelope === null || errorEnvelope === undefined
+      ? extractCliError(stderrText)
+      : envelopeError(errorEnvelope);
   const fallback = String(stderrText ?? "").trim() || genericMessage;
   return { cliError, fallback };
 }
 
-function wholeRunAnnotation(exitCode, stderrText) {
+function nextStep(hint) {
+  return `Next step: ${hint}`;
+}
+
+function wholeRunAnnotation(exitCode, stderrText, errorEnvelope) {
   const { cliError, fallback } = resolveWholeRunError(
     stderrText,
     `The verbatra run failed (exit ${exitCode}).`,
+    errorEnvelope,
   );
+  const message = cliError?.message ?? fallback;
+  const hint = cliError?.hint;
   return errorAnnotation(
     "verbatra",
     cliError?.code ?? "VERBATRA_FAILED",
-    cliError?.message ?? fallback,
+    hint === undefined ? message : `${message} ${nextStep(hint)}`,
   );
 }
 
-function wholeRunMarkdown(exitCode, stderrText) {
+function wholeRunMarkdown(exitCode, stderrText, errorEnvelope) {
   const { cliError, fallback } = resolveWholeRunError(
     stderrText,
     `The run could not complete (exit ${exitCode}).`,
+    errorEnvelope,
   );
   const detail = cliError
     ? `[${escapeMarkdown(cliError.code)}] ${escapeMarkdown(cliError.message)}`
     : escapeMarkdown(fallback);
-  return [
+  const lines = [
     "## verbatra run failed",
     "",
     `The verbatra run could not complete (exit ${exitCode}).`,
     "",
     detail,
-  ].join("\n");
+  ];
+  if (cliError?.hint !== undefined) {
+    lines.push("", escapeMarkdown(nextStep(cliError.hint)));
+  }
+  return lines.join("\n");
 }
 
 export const ANNOTATION_LIMIT_PER_LEVEL = 10;
@@ -530,10 +715,12 @@ export function buildReport(
   options = {},
 ) {
   if (summary === null) {
-    const annotations = exitCode !== 0 ? [wholeRunAnnotation(exitCode, stderrText)] : [];
+    const errorEnvelope = options.errorEnvelope ?? null;
+    const annotations =
+      exitCode !== 0 ? [wholeRunAnnotation(exitCode, stderrText, errorEnvelope)] : [];
     return {
       annotations,
-      summary: wholeRunMarkdown(exitCode, stderrText),
+      summary: wholeRunMarkdown(exitCode, stderrText, errorEnvelope),
       exitStatus: exitCode,
       needsHuman: false,
     };

@@ -400,3 +400,38 @@ describe("annotate.mjs: qa-strict reaches the report", () => {
     expect(readFileSync(stepSummaryFile, "utf8")).toContain("with qa-strict exits 1");
   });
 });
+
+describe("annotate.mjs: a --json error envelope on stdout reaches the report", () => {
+  it("annotates the envelope's code and hint and writes the next step into the summary", async () => {
+    const summaryFile = fixture(
+      "summary.json",
+      JSON.stringify({
+        ok: false,
+        version: 1,
+        command: "translate",
+        code: "PROVIDER_CONSTRUCTION_FAILED",
+        message: "could not construct the provider",
+        causeCode: "MISSING_API_KEY",
+        hint: "Set GEMINI_API_KEY in the environment.",
+      }),
+    );
+    const errorFile = fixture(
+      "error.txt",
+      "verbatra: error [PROVIDER_CONSTRUCTION_FAILED] could not construct the provider (cause: MISSING_API_KEY)\n",
+    );
+    const stepSummaryFile = join(workDir, "step-summary.md");
+
+    const { exitSpy, writeSpy } = await runInProcess(
+      [summaryFile, errorFile, "2", "translate"],
+      stepSummaryFile,
+    );
+
+    expect(exitSpy).toHaveBeenCalledWith(2);
+    expect(writeSpy).toHaveBeenCalledWith(
+      "::error title=verbatra::[PROVIDER_CONSTRUCTION_FAILED] could not construct the provider (cause: MISSING_API_KEY) Next step: Set GEMINI_API_KEY in the environment.\n",
+    );
+    expect(readFileSync(stepSummaryFile, "utf8")).toContain(
+      "Next step: Set GEMINI_API_KEY in the environment.",
+    );
+  });
+});
