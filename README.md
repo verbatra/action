@@ -5,7 +5,7 @@
 <h1 align="center">verbatra GitHub Action</h1>
 
 <p align="center">
-  Run verbatra i18n translations in CI or gate a pull request on locale drift, annotate failures, and write a job summary, using OpenAI, Anthropic, Gemini, DeepL, Google Cloud Translation, or an openai-compatible local or self-hosted model.
+  Run verbatra i18n translations in CI or gate a pull request on locale drift, annotate failures, and write a job summary, using OpenAI, Anthropic, Gemini, DeepL, Google Cloud Translation, a self-hosted LibreTranslate server, or an openai-compatible local or self-hosted model.
 </p>
 
 <p align="center">
@@ -373,6 +373,7 @@ API keys come only from environment variables, never from action inputs or a lit
 | `deepl` | `DEEPL_API_KEY` |
 | `google-translate` | `GOOGLE_TRANSLATE_API_KEY` |
 | `openai-compatible` | `OPENAI_COMPATIBLE_API_KEY`, or the variable named by `provider.options.apiKeyEnvVar`; omit entirely for a server that needs no key |
+| `libretranslate` | `LIBRETRANSLATE_API_KEY`, only when your server requires a key |
 
 Set only the keys your configured provider needs, and each value must be a `${{ secrets.* }}` reference, never a literal. Keys are never echoed: the action's own error messages name the variable but never a value.
 
