@@ -971,6 +971,23 @@ describe("buildReport: check --qa findings", () => {
     expect(report.summary).not.toContain("Step failed");
   });
 
+  it("names the details of a warning finding in its annotation and its summary row", () => {
+    const foreignWarning = {
+      key: "greeting",
+      severity: "warning",
+      reason: "FOREIGN_PLACEHOLDER_CHANGED",
+      details: ["-{name}"],
+    };
+    const report = buildReport(qaResult([["de", [foreignWarning]]]), 0, "", "check");
+    expect(report.exitStatus).toBe(0);
+    expect(report.annotations).toEqual([
+      "::warning title=verbatra qa%3A de::[FOREIGN_PLACEHOLDER_CHANGED] greeting (-{name})",
+    ]);
+    expect(report.summary).toContain(
+      "| de | greeting | warning | FOREIGN_PLACEHOLDER_CHANGED | -{name} |",
+    );
+  });
+
   it("adds per-locale qa columns and totals to the summary only when the check ran --qa", () => {
     const withQa = buildReport(
       qaResult([
