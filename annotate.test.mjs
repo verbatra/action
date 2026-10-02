@@ -66,6 +66,7 @@ let workDir;
 let importCase = 0;
 let originalArgv;
 let originalGithubStepSummary;
+let originalGithubOutput;
 
 function fixture(name, content) {
   const path = join(workDir, name);
@@ -73,12 +74,17 @@ function fixture(name, content) {
   return path;
 }
 
-async function runInProcess(argv, stepSummaryPath) {
+async function runInProcess(argv, stepSummaryPath, outputPath) {
   process.argv = ["node", scriptPath, ...argv];
   if (stepSummaryPath === undefined) {
     delete process.env.GITHUB_STEP_SUMMARY;
   } else {
     process.env.GITHUB_STEP_SUMMARY = stepSummaryPath;
+  }
+  if (outputPath === undefined) {
+    delete process.env.GITHUB_OUTPUT;
+  } else {
+    process.env.GITHUB_OUTPUT = outputPath;
   }
 
   const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => undefined);
@@ -98,6 +104,7 @@ beforeEach(() => {
   workDir = mkdtempSync(join(tmpdir(), "verbatra-annotate-"));
   originalArgv = process.argv;
   originalGithubStepSummary = process.env.GITHUB_STEP_SUMMARY;
+  originalGithubOutput = process.env.GITHUB_OUTPUT;
 });
 
 afterEach(() => {
@@ -108,6 +115,11 @@ afterEach(() => {
     delete process.env.GITHUB_STEP_SUMMARY;
   } else {
     process.env.GITHUB_STEP_SUMMARY = originalGithubStepSummary;
+  }
+  if (originalGithubOutput === undefined) {
+    delete process.env.GITHUB_OUTPUT;
+  } else {
+    process.env.GITHUB_OUTPUT = originalGithubOutput;
   }
 });
 
@@ -124,7 +136,7 @@ describe("annotate.mjs (in-process)", () => {
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     expect(writeSpy).not.toHaveBeenCalled();
-    expect(readFileSync(stepSummaryFile, "utf8")).toContain("1 locales: 1 succeeded, 0 failed");
+    expect(readFileSync(stepSummaryFile, "utf8")).toContain("1 locales: 1 succeeded, 0 partial, 0 failed");
   });
 
   it("failed locale: exits 1 and writes the locale annotation to stdout", async () => {
@@ -168,6 +180,59 @@ describe("annotate.mjs (in-process)", () => {
   });
 });
 
+function needsHumanEnvelope() {
+  const envelope = successEnvelope();
+  envelope.result.locales[0].translated = [];
+  envelope.result.locales[0].unfilled = ["farewell", "title"];
+  envelope.result.locales[0].protected = [{ key: "legal", reason: "human-edited" }];
+  return envelope;
+}
+
+describe("annotate.mjs: translate exit 3 means a person has work, not a failure", () => {
+  it("exits 0, warns per locale, and sets the needs-human output to true", async () => {
+    const summaryFile = fixture("summary.json", JSON.stringify(needsHumanEnvelope()));
+    const errorFile = fixture("error.txt", "");
+    const outputFile = fixture("output.txt", "");
+
+    const { exitSpy, writeSpy } = await runInProcess(
+      [summaryFile, errorFile, "3", "translate"],
+      undefined,
+      outputFile,
+    );
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(writeSpy).toHaveBeenCalledTimes(1);
+    expect(writeSpy.mock.calls[0][0]).toBe(
+      "::warning title=verbatra%3A de::[NEEDS_HUMAN] 3 keys need a human translation (unfilled: farewell, title; protected: legal)\n",
+    );
+    expect(readFileSync(outputFile, "utf8")).toBe("needs-human=true\n");
+  });
+
+  it("sets the needs-human output to false on any other outcome", async () => {
+    const summaryFile = fixture("summary.json", JSON.stringify(successEnvelope()));
+    const errorFile = fixture("error.txt", "");
+    const outputFile = fixture("output.txt", "");
+
+    const { exitSpy } = await runInProcess([summaryFile, errorFile, "0"], undefined, outputFile);
+
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    expect(readFileSync(outputFile, "utf8")).toBe("needs-human=false\n");
+  });
+
+  it("the spawned process exits 0 on translate exit 3, so the step passes", () => {
+    const summaryFile = fixture("summary.json", JSON.stringify(needsHumanEnvelope()));
+    const errorFile = fixture("error.txt", "");
+    const outputFile = fixture("output.txt", "");
+
+    const child = runOutOfProcess([summaryFile, errorFile, "3", "translate"], {
+      GITHUB_OUTPUT: outputFile,
+    });
+
+    expect(child.status).toBe(0);
+    expect(readFileSync(outputFile, "utf8")).toBe("needs-human=true\n");
+  });
+});
+
 describe("annotate.mjs (spawned as a real child process)", () => {
   it("clean run: process exits 0, prints nothing, and appends the job summary file", () => {
     const summaryFile = fixture("summary.json", JSON.stringify(successEnvelope()));
@@ -180,7 +245,7 @@ describe("annotate.mjs (spawned as a real child process)", () => {
 
     expect(child.status).toBe(0);
     expect(child.stdout).toBe("");
-    expect(readFileSync(stepSummaryFile, "utf8")).toContain("1 locales: 1 succeeded, 0 failed");
+    expect(readFileSync(stepSummaryFile, "utf8")).toContain("1 locales: 1 succeeded, 0 partial, 0 failed");
   });
 
   it("whole-run failure: process exits with the given code and prints the error annotation", () => {
@@ -290,5 +355,83 @@ describe("annotate.mjs: the command argument selects the renderer", () => {
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     expect(writeSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("annotate.mjs: qa-strict reaches the report", () => {
+  function warningOnlyEnvelope() {
+    return {
+      ok: true,
+      version: 1,
+      command: "check",
+      result: {
+        inSync: true,
+        locales: [
+          {
+            locale: "de",
+            missing: 0,
+            stale: 0,
+            upToDate: 1,
+            inSync: true,
+            qa: {
+              checked: 1,
+              errors: 0,
+              warnings: 1,
+              findings: [{ key: "title", severity: "warning", reason: "LENGTH_RATIO" }],
+            },
+          },
+        ],
+        qa: { errors: 0, warnings: 1, invalidSourceKeys: [] },
+      },
+    };
+  }
+
+  it("reads QA_STRICT from the environment and explains a strict warning failure", () => {
+    const summaryFile = fixture("summary.json", JSON.stringify(warningOnlyEnvelope()));
+    const errorFile = fixture("error.txt", "");
+    const stepSummaryFile = join(workDir, "step-summary.md");
+
+    const child = runOutOfProcess([summaryFile, errorFile, "1", "check"], {
+      GITHUB_STEP_SUMMARY: stepSummaryFile,
+      QA_STRICT: "true",
+    });
+
+    expect(child.status).toBe(1);
+    expect(readFileSync(stepSummaryFile, "utf8")).toContain("with qa-strict exits 1");
+  });
+});
+
+describe("annotate.mjs: a --json error envelope on stdout reaches the report", () => {
+  it("annotates the envelope's code and hint and writes the next step into the summary", async () => {
+    const summaryFile = fixture(
+      "summary.json",
+      JSON.stringify({
+        ok: false,
+        version: 1,
+        command: "translate",
+        code: "PROVIDER_CONSTRUCTION_FAILED",
+        message: "could not construct the provider",
+        causeCode: "MISSING_API_KEY",
+        hint: "Set GEMINI_API_KEY in the environment.",
+      }),
+    );
+    const errorFile = fixture(
+      "error.txt",
+      "verbatra: error [PROVIDER_CONSTRUCTION_FAILED] could not construct the provider (cause: MISSING_API_KEY)\n",
+    );
+    const stepSummaryFile = join(workDir, "step-summary.md");
+
+    const { exitSpy, writeSpy } = await runInProcess(
+      [summaryFile, errorFile, "2", "translate"],
+      stepSummaryFile,
+    );
+
+    expect(exitSpy).toHaveBeenCalledWith(2);
+    expect(writeSpy).toHaveBeenCalledWith(
+      "::error title=verbatra::[PROVIDER_CONSTRUCTION_FAILED] could not construct the provider (cause: MISSING_API_KEY) Next step: Set GEMINI_API_KEY in the environment.\n",
+    );
+    expect(readFileSync(stepSummaryFile, "utf8")).toContain(
+      "Next step: Set GEMINI_API_KEY in the environment.",
+    );
   });
 });

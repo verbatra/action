@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildReport,
   extractCliError,
+  NEEDS_HUMAN_EXIT_CODE,
+  parseErrorEnvelope,
   parseSummaryJson,
   resolveExitCode,
   WIRING_FAILURE_EXIT_CODE,
@@ -35,7 +37,7 @@ describe("buildReport: exit code is a literal pass-through", () => {
     const report = buildReport(s, 0);
     expect(report.annotations).toEqual([]);
     expect(report.exitStatus).toBe(0);
-    expect(report.summary).toContain("1 locales: 1 succeeded, 0 failed");
+    expect(report.summary).toContain("1 locales: 1 succeeded, 0 partial, 0 failed");
     expect(report.summary).toContain("| de | ok | 2 | 1 |");
   });
 
@@ -76,6 +78,146 @@ describe("buildReport: per-locale failure (exit 1): the conjunction criterion", 
     expect(report.annotations[1]).toContain("[SOURCE_INVALID] bad icu");
     expect(report.summary).toContain("Failed locales:");
     expect(report.summary).toContain("- fr: [LOCALE_FAILED] provider 503");
+  });
+});
+
+describe("buildReport: partial locales are reported wherever failed ones are", () => {
+  function partialRun() {
+    return summary({
+      locales: [
+        locale({ locale: "de", translated: ["a"] }),
+        locale({
+          locale: "fr",
+          status: "partial",
+          translated: ["a", "b"],
+          integrityMismatches: ["c"],
+          providerFailures: ["d", "e"],
+          budgetWithheld: ["f"],
+        }),
+      ],
+      succeeded: ["de"],
+      partial: ["fr"],
+    });
+  }
+
+  it("a run whose only problem is a partial locale annotates it instead of emitting nothing", () => {
+    const report = buildReport(partialRun(), 1);
+    expect(report.exitStatus).toBe(1);
+    expect(report.annotations).toEqual([
+      "::error title=verbatra%3A fr::[LOCALE_PARTIAL] 2 translated, 4 keys withheld (integrity: c; provider failure: d, e; budget: f)",
+    ]);
+  });
+
+  it("the status column shows partial rather than ok", () => {
+    const report = buildReport(partialRun(), 1);
+    expect(report.summary).toContain("| fr | partial | 2 | 0 | 0 | 0 | 1 | 2 | 0 |");
+    expect(report.summary).toContain("| de | ok | 1 |");
+  });
+
+  it("the aggregate line counts partial locales between succeeded and failed", () => {
+    const report = buildReport(partialRun(), 1);
+    expect(report.summary).toContain("2 locales: 1 succeeded, 1 partial, 0 failed");
+  });
+
+  it("the summary lists each partial locale with its withheld keys", () => {
+    const report = buildReport(partialRun(), 1);
+    expect(report.summary).toContain(
+      [
+        "Partial locales, written with keys still missing:",
+        "- fr: 2 translated, 4 keys withheld (integrity: c; provider failure: d, e; budget: f)",
+      ].join("\n"),
+    );
+    expect(report.summary).not.toContain("Failed locales:");
+  });
+
+  it("partial and failed locales are annotated side by side, in locale order", () => {
+    const s = summary({
+      locales: [
+        locale({ locale: "fr", status: "partial", translated: ["a"], providerFailures: ["b"] }),
+        locale({
+          locale: "es",
+          status: "failed",
+          error: { code: "LOCALE_FAILED", message: "provider 503" },
+        }),
+      ],
+      partial: ["fr"],
+      failed: ["es"],
+    });
+    const report = buildReport(s, 1);
+    expect(report.annotations).toEqual([
+      "::error title=verbatra%3A fr::[LOCALE_PARTIAL] 1 translated, 1 key withheld (provider failure: b)",
+      "::error title=verbatra%3A es::[LOCALE_FAILED] provider 503",
+    ]);
+    expect(report.summary).toContain("2 locales: 0 succeeded, 1 partial, 1 failed");
+  });
+
+  it("a failed locale with nothing thrown names its withheld keys instead of a bare 'locale failed'", () => {
+    const s = summary({
+      locales: [locale({ locale: "fr", status: "failed", integrityMismatches: ["a", "b"] })],
+      failed: ["fr"],
+    });
+    const report = buildReport(s, 1);
+    expect(report.annotations).toEqual([
+      "::error title=verbatra%3A fr::[LOCALE_FAILED] 2 keys withheld (integrity: a, b)",
+    ]);
+    expect(report.summary).toContain("- fr: [LOCALE_FAILED] 2 keys withheld (integrity: a, b)");
+  });
+
+  it("a long withheld list is capped in the annotation", () => {
+    const keys = Array.from({ length: 12 }, (_, index) => `k${index}`);
+    const s = summary({
+      locales: [locale({ locale: "fr", status: "partial", providerFailures: keys })],
+      partial: ["fr"],
+    });
+    const [annotation] = buildReport(s, 1).annotations;
+    expect(annotation).toContain("12 keys withheld (provider failure: k0,");
+    expect(annotation).toContain("k9, and 2 more)");
+    expect(annotation).not.toContain("k10");
+  });
+
+  it("a partial locale reporting no withheld key still says so rather than rendering nothing", () => {
+    const s = summary({
+      locales: [locale({ locale: "fr", status: "partial", translated: ["a"] })],
+      partial: ["fr"],
+    });
+    const report = buildReport(s, 1);
+    expect(report.annotations).toEqual([
+      "::error title=verbatra%3A fr::[LOCALE_PARTIAL] 1 translated, 0 keys withheld",
+    ]);
+  });
+
+  it("a summary from a CLI that predates the partial list still renders a zero partial count", () => {
+    const s = summary({ locales: [locale()], succeeded: ["de"] });
+    delete s.partial;
+    expect(buildReport(s, 0).summary).toContain("1 locales: 1 succeeded, 0 partial, 0 failed");
+  });
+
+  it("a partial locale on a clean exit is shown in the table but not annotated", () => {
+    const report = buildReport(partialRun(), 0);
+    expect(report.annotations).toEqual([]);
+    expect(report.summary).toContain("| fr | partial |");
+  });
+
+  it("an untrusted withheld key cannot break out of the summary list or forge a workflow command", () => {
+    const s = summary({
+      locales: [
+        locale({
+          locale: "fr",
+          status: "partial",
+          translated: ["a"],
+          providerFailures: ["x|y\n## Forged heading\n::stop-commands::t"],
+        }),
+      ],
+      partial: ["fr"],
+    });
+    const report = buildReport(s, 1);
+    expect(report.summary.split("\n").filter((line) => line.startsWith("#"))).toEqual([
+      "## verbatra translation summary",
+    ]);
+    expect(report.summary).toContain("x\\|y ## Forged heading ::stop-commands::t");
+    expect(report.annotations).toHaveLength(1);
+    expect(report.annotations[0]).not.toContain("\n");
+    expect(report.annotations[0]).toContain("x|y%0A## Forged heading%0A::stop-commands::t");
   });
 });
 
@@ -773,5 +915,693 @@ describe("check and diff escaping: untrusted locale and key names cannot break o
     for (const summaryText of rendered) {
       expect(/\p{Extended_Pictographic}/u.test(summaryText)).toBe(false);
     }
+  });
+});
+
+function qaReport(findings) {
+  return {
+    checked: 5,
+    errors: findings.filter((finding) => finding.severity === "error").length,
+    warnings: findings.filter((finding) => finding.severity === "warning").length,
+    findings,
+  };
+}
+
+function qaResult(localeFindings, over = {}) {
+  const locales = localeFindings.map(([name, findings]) =>
+    checkLocale({ locale: name, qa: qaReport(findings) }),
+  );
+  const totals = locales.reduce(
+    (sum, entry) => ({
+      errors: sum.errors + entry.qa.errors,
+      warnings: sum.warnings + entry.qa.warnings,
+    }),
+    { errors: 0, warnings: 0 },
+  );
+  return checkResult({ locales, qa: { ...totals, invalidSourceKeys: [] }, ...over });
+}
+
+const placeholderError = {
+  key: "greeting",
+  severity: "error",
+  reason: "placeholder",
+  details: ["-{name}", "+{nom}"],
+};
+const lengthWarning = { key: "title", severity: "warning", reason: "LENGTH_RATIO" };
+
+describe("buildReport: check --qa findings", () => {
+  it("annotates an error finding as an error and a review finding as a warning", () => {
+    const report = buildReport(
+      qaResult([["de", [placeholderError, lengthWarning]]]),
+      1,
+      "",
+      "check",
+    );
+    expect(report.exitStatus).toBe(1);
+    expect(report.annotations).toEqual([
+      "::error title=verbatra qa%3A de::[placeholder] greeting (-{name}, +{nom})",
+      "::warning title=verbatra qa%3A de::[LENGTH_RATIO] title",
+    ]);
+  });
+
+  it("annotates warnings on a passing run too, so a non-strict gate still shows them", () => {
+    const report = buildReport(qaResult([["de", [lengthWarning]]]), 0, "", "check");
+    expect(report.exitStatus).toBe(0);
+    expect(report.annotations).toEqual(["::warning title=verbatra qa%3A de::[LENGTH_RATIO] title"]);
+    expect(report.summary).not.toContain("Step failed");
+  });
+
+  it("names the details of a warning finding in its annotation and its summary row", () => {
+    const foreignWarning = {
+      key: "greeting",
+      severity: "warning",
+      reason: "FOREIGN_PLACEHOLDER_CHANGED",
+      details: ["-{name}"],
+    };
+    const report = buildReport(qaResult([["de", [foreignWarning]]]), 0, "", "check");
+    expect(report.exitStatus).toBe(0);
+    expect(report.annotations).toEqual([
+      "::warning title=verbatra qa%3A de::[FOREIGN_PLACEHOLDER_CHANGED] greeting (-{name})",
+    ]);
+    expect(report.summary).toContain(
+      "| de | greeting | warning | FOREIGN_PLACEHOLDER_CHANGED | -{name} |",
+    );
+  });
+
+  it("adds per-locale qa columns and totals to the summary only when the check ran --qa", () => {
+    const withQa = buildReport(
+      qaResult([
+        ["de", [placeholderError, lengthWarning]],
+        ["fr", []],
+      ]),
+      1,
+      "",
+      "check",
+    ).summary;
+    expect(withQa).toContain("| locale | status | missing | stale | up to date | qa errors | qa warnings |");
+    expect(withQa).toContain("| de | in sync | 0 | 0 | 2 | 1 | 1 |");
+    expect(withQa).toContain("| fr | in sync | 0 | 0 | 2 | 0 | 0 |");
+    expect(withQa).toContain("2 locales: 2 in sync, 0 drifted; quality check: 1 errors, 1 warnings");
+
+    const withoutQa = buildReport(
+      checkResult({ locales: [checkLocale()] }),
+      0,
+      "",
+      "check",
+    ).summary;
+    expect(withoutQa).not.toContain("qa errors");
+    expect(withoutQa).not.toContain("quality check");
+  });
+
+  it("explains a failure caused by the quality check alone, then lists every finding", () => {
+    const summaryText = buildReport(
+      qaResult([["de", [placeholderError, lengthWarning]]]),
+      1,
+      "",
+      "check",
+    ).summary;
+    expect(summaryText).toContain(
+      "Step failed: the quality check found 1 errors. check --qa exits 1 on any error.",
+    );
+    expect(summaryText).not.toContain("Drifted locales:");
+    expect(summaryText).toContain(
+      [
+        "Quality findings:",
+        "",
+        "| locale | key | severity | reason | details |",
+        "| --- | --- | --- | --- | --- |",
+        "| de | greeting | error | placeholder | -{name}, +{nom} |",
+        "| de | title | warning | LENGTH_RATIO |  |",
+      ].join("\n"),
+    );
+  });
+
+  it("reports drift and quality findings together when both fail the step", () => {
+    const result = qaResult([["de", [placeholderError]]]);
+    const drifted = {
+      ...result,
+      inSync: false,
+      locales: [{ ...result.locales[0], missing: 1, inSync: false }],
+    };
+    const report = buildReport(drifted, 1, "", "check");
+    expect(report.annotations).toEqual([
+      "::error title=verbatra check%3A de::[LOCALE_DRIFTED] 1 missing, 0 stale",
+      "::error title=verbatra qa%3A de::[placeholder] greeting (-{name}, +{nom})",
+    ]);
+    expect(report.summary).toContain("Drifted locales:");
+    expect(report.summary).toContain("Step failed: the quality check found 1 errors");
+  });
+
+  it("does not blame the quality check for a drift failure when it found only warnings", () => {
+    const result = qaResult([["de", [lengthWarning]]]);
+    const drifted = {
+      ...result,
+      inSync: false,
+      locales: [{ ...result.locales[0], missing: 1, inSync: false }],
+    };
+    const text = buildReport(drifted, 1, "", "check").summary;
+    expect(text).toContain("Drifted locales:");
+    expect(text).not.toContain("Step failed: the quality check");
+    expect(text).toContain("| de | title | warning | LENGTH_RATIO |  |");
+  });
+
+  it("blames warnings only when qa-strict made them fail the step", () => {
+    const report = buildReport(qaResult([["de", [lengthWarning]]]), 1, "", "check", {
+      qaStrict: true,
+    });
+    expect(report.summary).toContain(
+      "Step failed: the quality check found 0 errors, 1 warnings, and 0 incomplete plurals. check --qa with qa-strict exits 1 on any error, warning, or incomplete plural.",
+    );
+  });
+
+  it("keeps at most 10 annotations per severity, errors listed first, and counts the rest", () => {
+    const warnings = Array.from({ length: 60 }, (_, index) => ({
+      key: `w${index}`,
+      severity: "warning",
+      reason: "UNTRANSLATED",
+    }));
+    const report = buildReport(
+      qaResult([
+        ["de", warnings],
+        ["fr", [placeholderError]],
+      ]),
+      1,
+      "",
+      "check",
+    );
+    expect(report.annotations[0]).toBe(
+      "::error title=verbatra qa%3A fr::[placeholder] greeting (-{name}, +{nom})",
+    );
+    expect(report.annotations.filter((line) => line.startsWith("::warning"))).toHaveLength(10);
+    expect(report.annotations).toHaveLength(12);
+    expect(report.annotations[11]).toBe(
+      "::notice title=verbatra::50 more warnings not annotated, because GitHub shows at most 10 annotations of each severity per step. The job summary lists them all.",
+    );
+  });
+
+  it("drift errors come before quality errors, so the error cap keeps them", () => {
+    const errors = Array.from({ length: 12 }, (_, index) => ({
+      ...placeholderError,
+      key: `e${index}`,
+    }));
+    const result = qaResult([["de", errors]]);
+    const drifted = {
+      ...result,
+      inSync: false,
+      locales: [{ ...result.locales[0], missing: 2, inSync: false }],
+    };
+    const report = buildReport(drifted, 1, "", "check");
+    expect(report.annotations[0]).toContain("[LOCALE_DRIFTED]");
+    expect(report.annotations.filter((line) => line.startsWith("::error"))).toHaveLength(10);
+    expect(report.annotations.at(-1)).toContain("::notice title=verbatra::3 more errors not annotated");
+    expect(report.annotations.at(-1)).not.toContain("warning");
+  });
+
+  it("names both severities in the notice when both overflow, singular when one is left", () => {
+    const findings = [
+      ...Array.from({ length: 11 }, (_, index) => ({ ...placeholderError, key: `e${index}` })),
+      ...Array.from({ length: 12 }, (_, index) => ({ ...lengthWarning, key: `w${index}` })),
+    ];
+    const report = buildReport(qaResult([["de", findings]]), 1, "", "check");
+    expect(report.annotations).toHaveLength(21);
+    expect(report.annotations[20]).toContain("::notice title=verbatra::1 more error and 2 more warnings not annotated");
+  });
+
+  it("caps translate annotations per step too", () => {
+    const locales = Array.from({ length: 12 }, (_, index) =>
+      locale({ locale: `l${index}`, status: "failed", error: { code: "X", message: "y" } }),
+    );
+    const report = buildReport(summary({ locales, failed: locales.map((l) => l.locale) }), 1);
+    expect(report.annotations).toHaveLength(11);
+    expect(report.annotations[10]).toContain("2 more errors not annotated");
+  });
+
+  it("the findings table is the full view, capped only as a guard on the summary size", () => {
+    const warnings = Array.from({ length: 1005 }, (_, index) => ({
+      key: `w${index}`,
+      severity: "warning",
+      reason: "UNTRANSLATED",
+    }));
+    const summaryText = buildReport(qaResult([["de", warnings]]), 0, "", "check").summary;
+    expect(summaryText).toContain("| de | w999 | warning | UNTRANSLATED |  |");
+    expect(summaryText).not.toContain("| de | w1000 |");
+    expect(summaryText).toContain("and 5 more. Run verbatra check --qa locally for the full list.");
+  });
+
+  it("names the source keys the quality check skipped for invalid ICU", () => {
+    const result = qaResult([["de", []]]);
+    const summaryText = buildReport(
+      { ...result, qa: { ...result.qa, invalidSourceKeys: ["broken", "also|broken"] } },
+      0,
+      "",
+      "check",
+    ).summary;
+    expect(summaryText).toContain(
+      "Source keys the quality check skipped because the source is not valid ICU: broken, also\\|broken",
+    );
+    expect(summaryText).not.toContain("Quality findings:");
+  });
+
+  it("a clean quality check renders totals and nothing else", () => {
+    const report = buildReport(qaResult([["de", []]]), 0, "", "check");
+    expect(report.annotations).toEqual([]);
+    expect(report.summary).toContain("quality check: 0 errors, 0 warnings");
+    expect(report.summary).not.toContain("Quality findings:");
+  });
+
+  it("a locale missing its own qa block renders zero counts rather than crashing", () => {
+    const summaryText = buildReport(
+      checkResult({
+        locales: [checkLocale()],
+        qa: { errors: 0, warnings: 0 },
+      }),
+      0,
+      "",
+      "check",
+    ).summary;
+    expect(summaryText).toContain("| de | in sync | 0 | 0 | 2 | 0 | 0 |");
+  });
+
+  it("an untrusted key, reason, or detail cannot forge a workflow command or break the table", () => {
+    const hostile = {
+      key: "k|1\n::stop-commands::x",
+      severity: "error",
+      reason: "icu:x,y",
+      details: ["a|b\n## Forged heading"],
+    };
+    const report = buildReport(qaResult([["de:1", [hostile]]]), 1, "", "check");
+    expect(report.annotations).toEqual([
+      "::error title=verbatra qa%3A de%3A1::[icu:x,y] k|1%0A::stop-commands::x (a|b%0A## Forged heading)",
+    ]);
+    const headings = report.summary.split("\n").filter((line) => line.startsWith("#"));
+    expect(headings).toEqual(["## verbatra check summary"]);
+    expect(report.summary).toContain(
+      "| de:1 | k\\|1 ::stop-commands::x | error | icu:x,y | a\\|b ## Forged heading |",
+    );
+  });
+});
+
+describe("buildReport: translate exit 3 is work for a person, not a failure", () => {
+  function humanOnlyRun() {
+    return summary({
+      locales: [
+        locale({ locale: "de", unfilled: ["a", "b"], protected: [], unchanged: ["c"] }),
+        locale({ locale: "fr", unfilled: [], protected: [{ key: "legal", reason: "pinned" }] }),
+        locale({ locale: "es", unfilled: [], protected: [] }),
+      ],
+      succeeded: ["de", "fr", "es"],
+    });
+  }
+
+  it("passes the step, reports needsHuman, and warns once per locale with keys left", () => {
+    const report = buildReport(humanOnlyRun(), NEEDS_HUMAN_EXIT_CODE, "", "translate");
+    expect(report.exitStatus).toBe(0);
+    expect(report.needsHuman).toBe(true);
+    expect(report.annotations).toEqual([
+      "::warning title=verbatra%3A de::[NEEDS_HUMAN] 2 keys need a human translation (unfilled: a, b)",
+      "::warning title=verbatra%3A fr::[NEEDS_HUMAN] 1 key needs a human translation (protected: legal)",
+    ]);
+  });
+
+  it("the summary says why the step passed and lists what is left for a person", () => {
+    const text = buildReport(humanOnlyRun(), 3, "", "translate").summary;
+    expect(text).toContain("3 locales: 3 succeeded, 0 partial, 0 failed");
+    expect(text).toContain(
+      "Step passed with work left for a person: machine translation is disabled by policy, so translate exited 3.",
+    );
+    expect(text).toContain(
+      [
+        "Needs a human translation:",
+        "- de: 2 keys need a human translation (unfilled: a, b)",
+        "- fr: 1 key needs a human translation (protected: legal)",
+      ].join("\n"),
+    );
+    expect(text).not.toContain("- es:");
+  });
+
+  it("the default command is translate, so a missing command argument gets the same treatment", () => {
+    expect(buildReport(humanOnlyRun(), 3).exitStatus).toBe(0);
+  });
+
+  it("any other exit code reports needsHuman false and adds no human-work section", () => {
+    const report = buildReport(humanOnlyRun(), 0, "", "translate");
+    expect(report.needsHuman).toBe(false);
+    expect(report.annotations).toEqual([]);
+    expect(report.summary).not.toContain("Needs a human translation");
+  });
+
+  it("exit 3 from check or diff is not reinterpreted: it still fails the step", () => {
+    const check = buildReport(checkResult({ locales: [checkLocale()] }), 3, "", "check");
+    expect(check.exitStatus).toBe(3);
+    expect(check.needsHuman).toBe(false);
+    const diff = buildReport(diffResult({ locales: [diffLocale()] }), 3, "", "diff");
+    expect(diff.exitStatus).toBe(3);
+  });
+
+  it("exit 3 with no parseable summary is a whole-run failure, not a pass", () => {
+    const report = buildReport(null, 3, "", "translate");
+    expect(report.exitStatus).toBe(3);
+    expect(report.needsHuman).toBe(false);
+    expect(report.annotations[0]).toContain("[VERBATRA_FAILED]");
+  });
+
+  it("a summary from a CLI without unfilled or protected lists still passes the step", () => {
+    const report = buildReport(summary({ locales: [locale()] }), 3, "", "translate");
+    expect(report.exitStatus).toBe(0);
+    expect(report.annotations).toEqual([]);
+  });
+
+  it("skips the list heading when no locale names a key left for a person", () => {
+    const text = buildReport(summary({ locales: [locale()] }), 3, "", "translate").summary;
+    expect(text).toContain("Step passed with work left for a person");
+    expect(text).not.toContain("Needs a human translation:");
+  });
+
+  it("needsHuman is keyed on the translate command itself, not on the translate fallback", () => {
+    const report = buildReport(
+      summary({ locales: [locale({ unfilled: ["a"] })] }),
+      3,
+      "",
+      "publish",
+    );
+    expect(report.needsHuman).toBe(false);
+    expect(report.exitStatus).toBe(3);
+    expect(report.annotations).toEqual([]);
+    expect(report.summary).not.toContain("Step passed");
+  });
+
+  it("an untrusted key cannot forge a workflow command or break the list", () => {
+    const s = summary({
+      locales: [locale({ locale: "de", unfilled: ["x|y\n::stop-commands::z"] })],
+    });
+    const report = buildReport(s, 3, "", "translate");
+    expect(report.annotations[0]).toContain("unfilled: x|y%0A::stop-commands::z");
+    expect(report.summary).toContain("- de: 1 key needs a human translation (unfilled: x\\|y ::stop-commands::z)");
+  });
+});
+
+function reviewResult(localeKeys, over = {}) {
+  const locales = localeKeys.map(([name, keys]) =>
+    checkLocale({ locale: name, review: { unreviewed: keys } }),
+  );
+  const unreviewed = localeKeys.reduce((total, [, keys]) => total + keys.length, 0);
+  const review =
+    unreviewed === 0
+      ? { reviewed: true, unreviewed: 0 }
+      : { reviewed: false, unreviewed, code: "REVIEW_REQUIRED" };
+  return checkResult({ locales, review, ...over });
+}
+
+describe("buildReport: check --require-reviewed", () => {
+  it("annotates each locale with unapproved keys as an error naming them", () => {
+    const report = buildReport(
+      reviewResult([
+        ["de", ["checkout.title", "checkout.total"]],
+        ["fr", []],
+      ]),
+      1,
+      "",
+      "check",
+    );
+    expect(report.exitStatus).toBe(1);
+    expect(report.annotations).toEqual([
+      "::error title=verbatra review%3A de::[REVIEW_REQUIRED] 2 machine-written translations are not approved: checkout.title, checkout.total",
+    ]);
+  });
+
+  it("adds an unreviewed column and explains the failure in the summary", () => {
+    const summaryText = buildReport(
+      reviewResult([
+        ["de", ["checkout.title"]],
+        ["fr", []],
+      ]),
+      1,
+      "",
+      "check",
+    ).summary;
+    expect(summaryText).toContain("| locale | status | missing | stale | up to date | unreviewed |");
+    expect(summaryText).toContain("| de | in sync | 0 | 0 | 2 | 1 |");
+    expect(summaryText).toContain("| fr | in sync | 0 | 0 | 2 | 0 |");
+    expect(summaryText).toContain("2 locales: 2 in sync, 0 drifted; review: 1 unreviewed");
+    expect(summaryText).toContain(
+      "Step failed: [REVIEW_REQUIRED] 1 machine-written translations are not approved in verbatra.provenance.json.",
+    );
+    expect(summaryText).toContain(
+      "- de: 1 machine-written translation is not approved: checkout.title",
+    );
+  });
+
+  it("a reviewed project renders the column and a passing aggregate, and no annotation", () => {
+    const report = buildReport(reviewResult([["de", []]]), 0, "", "check");
+    expect(report.annotations).toEqual([]);
+    expect(report.summary).toContain(
+      "review: every machine-written translation approved",
+    );
+    expect(report.summary).not.toContain("Step failed");
+  });
+
+  it("an unreadable review state is one whole-project error, not a per-locale one", () => {
+    const result = checkResult({
+      locales: [checkLocale({ review: { unreviewed: [] } })],
+      review: { reviewed: false, unreviewed: 0, code: "REVIEW_STATE_UNREADABLE" },
+    });
+    const report = buildReport(result, 1, "", "check");
+    expect(report.annotations).toHaveLength(1);
+    expect(report.annotations[0]).toMatch(
+      /^::error title=verbatra review::\[REVIEW_STATE_UNREADABLE\] verbatra\.provenance\.json is corrupt/,
+    );
+    expect(report.summary).toContain("Step failed: [REVIEW_STATE_UNREADABLE]");
+  });
+
+  it("a failed gate without a code falls back to REVIEW_REQUIRED", () => {
+    const result = reviewResult([["de", ["a"]]]);
+    const withoutCode = { ...result, review: { reviewed: false, unreviewed: 1 } };
+    const report = buildReport(withoutCode, 1, "", "check");
+    expect(report.annotations[0]).toContain("[REVIEW_REQUIRED]");
+    expect(report.summary).toContain("Step failed: [REVIEW_REQUIRED]");
+  });
+
+  it("a locale without its own review block counts zero unreviewed", () => {
+    const result = checkResult({
+      locales: [checkLocale()],
+      review: { reviewed: true, unreviewed: 0 },
+    });
+    expect(buildReport(result, 0, "", "check").summary).toContain("| de | in sync | 0 | 0 | 2 | 0 |");
+  });
+
+  it("drift errors stay ahead of review errors, and review errors ahead of quality errors", () => {
+    const result = {
+      ...qaResult([["de", [placeholderError]]]),
+      inSync: false,
+    };
+    result.locales = [
+      { ...result.locales[0], inSync: false, missing: 1, review: { unreviewed: ["a"] } },
+    ];
+    result.review = { reviewed: false, unreviewed: 1, code: "REVIEW_REQUIRED" };
+    const annotations = buildReport(result, 1, "", "check").annotations;
+    expect(annotations.map((line) => line.match(/\[([A-Z_a-z]+)\]/)[1])).toEqual([
+      "LOCALE_DRIFTED",
+      "REVIEW_REQUIRED",
+      "placeholder",
+    ]);
+  });
+
+  it("an untrusted key cannot forge a workflow command or break the summary list", () => {
+    const report = buildReport(reviewResult([["de", ["x\n::stop-commands::t|y"]]]), 1, "", "check");
+    expect(report.annotations[0]).not.toContain("\n");
+    expect(report.annotations[0]).toContain("x%0A::stop-commands::t|y");
+    expect(report.summary).toContain("- de: 1 machine-written translation is not approved: x ::stop-commands::t\\|y");
+  });
+});
+
+const cartPlural = {
+  code: "PLURAL_CATEGORIES_INCOMPLETE",
+  key: "cart",
+  argument: "count",
+  ruleType: "cardinal",
+  missing: ["few", "many"],
+};
+const filesPlural = {
+  code: "PLURAL_CATEGORIES_INCOMPLETE",
+  key: "files",
+  ruleType: "cardinal",
+  missing: ["few", "many"],
+};
+
+describe("buildReport: check reports incomplete plurals as warnings", () => {
+  it("warns once per locale on a plain check, without failing it", () => {
+    const report = buildReport(
+      checkResult({
+        locales: [
+          checkLocale({ locale: "pl", incompletePlurals: [cartPlural, filesPlural] }),
+          checkLocale({ locale: "de", incompletePlurals: [] }),
+        ],
+      }),
+      0,
+      "",
+      "check",
+    );
+    expect(report.exitStatus).toBe(0);
+    expect(report.annotations).toEqual([
+      "::warning title=verbatra check%3A pl::[PLURAL_CATEGORIES_INCOMPLETE] 2 plurals lack CLDR plural categories the language uses: cart {count} (missing few, many), files (missing few, many)",
+    ]);
+    expect(report.summary).toContain(
+      "Plurals missing CLDR categories, a warning that fails the step only with qa-strict:",
+    );
+    expect(report.summary).toContain(
+      "- pl: 2 plurals lack CLDR plural categories the language uses: cart {count} (missing few, many), files (missing few, many)",
+    );
+    expect(report.summary).not.toContain("Step failed");
+  });
+
+  it("uses the singular for one plural and renders nothing when every plural is complete", () => {
+    const one = buildReport(
+      checkResult({ locales: [checkLocale({ incompletePlurals: [filesPlural] })] }),
+      0,
+      "",
+      "check",
+    );
+    expect(one.annotations[0]).toContain("1 plural lacks CLDR plural categories");
+
+    const none = buildReport(checkResult({ locales: [checkLocale()] }), 0, "", "check");
+    expect(none.annotations).toEqual([]);
+    expect(none.summary).not.toContain("Plurals missing");
+  });
+
+  it("explains a qa-strict failure caused only by an incomplete plural", () => {
+    const result = qaResult([["pl", []]]);
+    result.locales = [{ ...result.locales[0], incompletePlurals: [filesPlural] }];
+    const report = buildReport(result, 1, "", "check", { qaStrict: true });
+    expect(report.exitStatus).toBe(1);
+    expect(report.summary).toContain(
+      "Step failed: the quality check found 0 errors, 0 warnings, and 1 incomplete plurals.",
+    );
+  });
+
+  it("does not blame an incomplete plural without qa-strict", () => {
+    const result = qaResult([["pl", []]]);
+    result.locales = [{ ...result.locales[0], incompletePlurals: [filesPlural] }];
+    expect(buildReport(result, 0, "", "check").summary).not.toContain("Step failed");
+  });
+
+  it("tolerates a plural record without a missing list", () => {
+    const report = buildReport(
+      checkResult({ locales: [checkLocale({ incompletePlurals: [{ key: "k" }] })] }),
+      0,
+      "",
+      "check",
+    );
+    expect(report.annotations[0]).toContain("k (missing )");
+  });
+
+  it("an untrusted plural key cannot forge a workflow command or break the summary", () => {
+    const report = buildReport(
+      checkResult({
+        locales: [checkLocale({ incompletePlurals: [{ ...filesPlural, key: "a\n## h|b" }] })],
+      }),
+      0,
+      "",
+      "check",
+    );
+    expect(report.annotations[0]).toContain("a%0A## h|b");
+    expect(report.summary).toContain("a ## h\\|b");
+    expect(report.summary).not.toContain("\n## h");
+  });
+});
+
+describe("parseErrorEnvelope: the ok false record a --json run prints", () => {
+  it("reads code, message, causeCode, and hint", () => {
+    const stdout = JSON.stringify({
+      ok: false,
+      version: 1,
+      command: "translate",
+      code: "PROVIDER_CONSTRUCTION_FAILED",
+      message: "could not construct the provider",
+      causeCode: "MISSING_API_KEY",
+      hint: "Set GEMINI_API_KEY in the environment or in a .env file in the project directory.",
+    });
+    expect(parseErrorEnvelope(stdout)).toEqual({
+      code: "PROVIDER_CONSTRUCTION_FAILED",
+      message: "could not construct the provider",
+      causeCode: "MISSING_API_KEY",
+      hint: "Set GEMINI_API_KEY in the environment or in a .env file in the project directory.",
+    });
+  });
+
+  it("leaves the optional fields undefined when absent or not strings", () => {
+    const stdout = JSON.stringify({ ok: false, code: "CONFIG_INVALID", hint: 3 });
+    expect(parseErrorEnvelope(stdout)).toEqual({
+      code: "CONFIG_INVALID",
+      message: "",
+      causeCode: undefined,
+      hint: undefined,
+    });
+  });
+
+  it("returns null for empty, unparseable, successful, or code-less output", () => {
+    expect(parseErrorEnvelope("")).toBeNull();
+    expect(parseErrorEnvelope(undefined)).toBeNull();
+    expect(parseErrorEnvelope("{not json")).toBeNull();
+    expect(parseErrorEnvelope("null")).toBeNull();
+    expect(parseErrorEnvelope(JSON.stringify({ ok: true, result: {} }))).toBeNull();
+    expect(parseErrorEnvelope(JSON.stringify({ ok: false, message: "m" }))).toBeNull();
+    expect(parseErrorEnvelope(JSON.stringify({ ok: false, code: "" }))).toBeNull();
+  });
+});
+
+describe("buildReport: a whole-run error envelope surfaces its hint and cause", () => {
+  const envelope = {
+    code: "LOCALE_UNSUPPORTED_BY_PROVIDER",
+    message: "deepl does not support the locale xx",
+    causeCode: undefined,
+    hint: "Leave the locale out with --locales, or map it in provider.options.localeMap.",
+  };
+
+  it("adds the next step to the annotation and the summary", () => {
+    const report = buildReport(null, 2, "verbatra: error [OTHER] ignored", "translate", {
+      errorEnvelope: envelope,
+    });
+    expect(report.exitStatus).toBe(2);
+    expect(report.annotations).toEqual([
+      "::error title=verbatra::[LOCALE_UNSUPPORTED_BY_PROVIDER] deepl does not support the locale xx Next step: Leave the locale out with --locales, or map it in provider.options.localeMap.",
+    ]);
+    expect(report.summary).toContain(
+      "[LOCALE_UNSUPPORTED_BY_PROVIDER] deepl does not support the locale xx",
+    );
+    expect(report.summary).toContain(
+      "Next step: Leave the locale out with --locales, or map it in provider.options.localeMap.",
+    );
+  });
+
+  it("names the wrapped cause code the way the stderr line does", () => {
+    const report = buildReport(null, 2, "", "translate", {
+      errorEnvelope: {
+        code: "PROVIDER_CONSTRUCTION_FAILED",
+        message: "no key",
+        causeCode: "MISSING_API_KEY",
+        hint: undefined,
+      },
+    });
+    expect(report.annotations[0]).toBe(
+      "::error title=verbatra::[PROVIDER_CONSTRUCTION_FAILED] no key (cause: MISSING_API_KEY)",
+    );
+    expect(report.summary).not.toContain("Next step");
+  });
+
+  it("a null envelope keeps the stderr path", () => {
+    const report = buildReport(null, 2, "verbatra: error [CONFIG_INVALID] bad", "check", {
+      errorEnvelope: null,
+    });
+    expect(report.annotations[0]).toContain("[CONFIG_INVALID] bad");
+  });
+
+  it("an untrusted hint cannot forge a workflow command or inject a heading", () => {
+    const report = buildReport(null, 2, "", "translate", {
+      errorEnvelope: { ...envelope, hint: "x\n::stop-commands::t\n## h|i" },
+    });
+    expect(report.annotations).toHaveLength(1);
+    expect(report.annotations[0]).toContain("Next step: x%0A::stop-commands::t%0A## h|i");
+    expect(report.summary).toContain("Next step: x ::stop-commands::t ## h\\|i");
+    expect(report.summary).not.toContain("\n## h");
   });
 });
