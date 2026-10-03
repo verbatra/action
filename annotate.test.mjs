@@ -136,7 +136,7 @@ describe("annotate.mjs (in-process)", () => {
 
     expect(exitSpy).toHaveBeenCalledWith(0);
     expect(writeSpy).not.toHaveBeenCalled();
-    expect(readFileSync(stepSummaryFile, "utf8")).toContain("1 locales: 1 succeeded, 0 partial, 0 failed");
+    expect(readFileSync(stepSummaryFile, "utf8")).toContain("1 locale: 1 succeeded, 0 partial, 0 failed");
   });
 
   it("failed locale: exits 1 and writes the locale annotation to stdout", async () => {
@@ -245,7 +245,7 @@ describe("annotate.mjs (spawned as a real child process)", () => {
 
     expect(child.status).toBe(0);
     expect(child.stdout).toBe("");
-    expect(readFileSync(stepSummaryFile, "utf8")).toContain("1 locales: 1 succeeded, 0 partial, 0 failed");
+    expect(readFileSync(stepSummaryFile, "utf8")).toContain("1 locale: 1 succeeded, 0 partial, 0 failed");
   });
 
   it("whole-run failure: process exits with the given code and prints the error annotation", () => {
@@ -311,7 +311,7 @@ describe("annotate.mjs: the command argument selects the renderer", () => {
     expect(writeSpy.mock.calls[0][0]).toContain("[LOCALE_DRIFTED] 2 missing, 0 stale");
     const written = readFileSync(stepSummaryFile, "utf8");
     expect(written).toContain("## verbatra check summary");
-    expect(written).toContain("Step failed: 1 of 1 locales drifted from the source.");
+    expect(written).toContain("Step failed: 1 of 1 locale drifted from the source.");
   });
 
   it("diff pending: exits 1, annotates the pending locale with its keys", async () => {

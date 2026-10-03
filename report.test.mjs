@@ -37,7 +37,7 @@ describe("buildReport: exit code is a literal pass-through", () => {
     const report = buildReport(s, 0);
     expect(report.annotations).toEqual([]);
     expect(report.exitStatus).toBe(0);
-    expect(report.summary).toContain("1 locales: 1 succeeded, 0 partial, 0 failed");
+    expect(report.summary).toContain("1 locale: 1 succeeded, 0 partial, 0 failed");
     expect(report.summary).toContain("| de | ok | 2 | 1 |");
   });
 
@@ -189,7 +189,7 @@ describe("buildReport: partial locales are reported wherever failed ones are", (
   it("a summary from a CLI that predates the partial list still renders a zero partial count", () => {
     const s = summary({ locales: [locale()], succeeded: ["de"] });
     delete s.partial;
-    expect(buildReport(s, 0).summary).toContain("1 locales: 1 succeeded, 0 partial, 0 failed");
+    expect(buildReport(s, 0).summary).toContain("1 locale: 1 succeeded, 0 partial, 0 failed");
   });
 
   it("a partial locale on a clean exit is shown in the table but not annotated", () => {
@@ -628,7 +628,7 @@ describe("buildReport: check renders its own result shape, not the translate one
     expect(report.exitStatus).toBe(0);
     expect(report.summary).toContain("## verbatra check summary");
     expect(report.summary).toContain("| de | in sync | 0 | 0 | 2 |");
-    expect(report.summary).toContain("1 locales: 1 in sync, 0 drifted");
+    expect(report.summary).toContain("1 locale: 1 in sync, 0 drifted");
   });
 
   it("drifted (exit 1): one annotation per drifted locale AND a non-zero exitStatus", () => {
@@ -667,7 +667,7 @@ describe("buildReport: check renders its own result shape, not the translate one
       "check",
     );
     expect(report.summary).toContain(
-      "Step failed: 1 of 1 locales drifted from the source. check exits 1 when a locale has missing or stale keys.",
+      "Step failed: 1 of 1 locale drifted from the source. check exits 1 when a locale has missing or stale keys.",
     );
     expect(report.summary).toContain("Drifted locales:");
     expect(report.summary).toContain("- de: 2 missing, 0 stale");
@@ -687,7 +687,7 @@ describe("buildReport: diff renders its own result shape, not the translate one"
     expect(report.exitStatus).toBe(0);
     expect(report.summary).toContain("## verbatra diff summary");
     expect(report.summary).toContain("| de | clean | 0 | 0 | 0 |");
-    expect(report.summary).toContain("1 locales: 1 clean, 0 pending");
+    expect(report.summary).toContain("1 locale: 1 clean, 0 pending");
   });
 
   it("pending (exit 1): one annotation per pending locale, naming the keys", () => {
@@ -727,7 +727,7 @@ describe("buildReport: diff renders its own result shape, not the translate one"
       "diff",
     );
     expect(report.summary).toContain(
-      "Step failed: 1 of 1 locales have pending changes. diff exits 1 when a locale has missing or changed keys.",
+      "Step failed: 1 of 1 locale has pending changes. diff exits 1 when a locale has missing or changed keys.",
     );
     expect(report.summary).toContain("Pending locales:");
     expect(report.summary).toContain("- de: missing: greeting");
@@ -1001,7 +1001,7 @@ describe("buildReport: check --qa findings", () => {
     expect(withQa).toContain("| locale | status | missing | stale | up to date | qa errors | qa warnings |");
     expect(withQa).toContain("| de | in sync | 0 | 0 | 2 | 1 | 1 |");
     expect(withQa).toContain("| fr | in sync | 0 | 0 | 2 | 0 | 0 |");
-    expect(withQa).toContain("2 locales: 2 in sync, 0 drifted; quality check: 1 errors, 1 warnings");
+    expect(withQa).toContain("2 locales: 2 in sync, 0 drifted; quality check: 1 error, 1 warning");
 
     const withoutQa = buildReport(
       checkResult({ locales: [checkLocale()] }),
@@ -1021,7 +1021,7 @@ describe("buildReport: check --qa findings", () => {
       "check",
     ).summary;
     expect(summaryText).toContain(
-      "Step failed: the quality check found 1 errors. check --qa exits 1 on any error.",
+      "Step failed: the quality check found 1 error. check --qa exits 1 on any error.",
     );
     expect(summaryText).not.toContain("Drifted locales:");
     expect(summaryText).toContain(
@@ -1049,7 +1049,7 @@ describe("buildReport: check --qa findings", () => {
       "::error title=verbatra qa%3A de::[placeholder] greeting (-{name}, +{nom})",
     ]);
     expect(report.summary).toContain("Drifted locales:");
-    expect(report.summary).toContain("Step failed: the quality check found 1 errors");
+    expect(report.summary).toContain("Step failed: the quality check found 1 error");
   });
 
   it("does not blame the quality check for a drift failure when it found only warnings", () => {
@@ -1070,7 +1070,7 @@ describe("buildReport: check --qa findings", () => {
       qaStrict: true,
     });
     expect(report.summary).toContain(
-      "Step failed: the quality check found 0 errors, 1 warnings, and 0 incomplete plurals. check --qa with qa-strict exits 1 on any error, warning, or incomplete plural.",
+      "Step failed: the quality check found 0 errors, 1 warning, and 0 incomplete plurals. check --qa with qa-strict exits 1 on any error, warning, or incomplete plural.",
     );
   });
 
@@ -1344,7 +1344,7 @@ describe("buildReport: check --require-reviewed", () => {
     expect(summaryText).toContain("| fr | in sync | 0 | 0 | 2 | 0 |");
     expect(summaryText).toContain("2 locales: 2 in sync, 0 drifted; review: 1 unreviewed");
     expect(summaryText).toContain(
-      "Step failed: [REVIEW_REQUIRED] 1 machine-written translations are not approved in verbatra.provenance.json.",
+      "Step failed: [REVIEW_REQUIRED] 1 machine-written translation is not approved in verbatra.provenance.json.",
     );
     expect(summaryText).toContain(
       "- de: 1 machine-written translation is not approved: checkout.title",
@@ -1474,7 +1474,7 @@ describe("buildReport: check reports incomplete plurals as warnings", () => {
     const report = buildReport(result, 1, "", "check", { qaStrict: true });
     expect(report.exitStatus).toBe(1);
     expect(report.summary).toContain(
-      "Step failed: the quality check found 0 errors, 0 warnings, and 1 incomplete plurals.",
+      "Step failed: the quality check found 0 errors, 0 warnings, and 1 incomplete plural.",
     );
   });
 
@@ -1603,5 +1603,64 @@ describe("buildReport: a whole-run error envelope surfaces its hint and cause", 
     expect(report.annotations[0]).toContain("Next step: x%0A::stop-commands::t%0A## h|i");
     expect(report.summary).toContain("Next step: x ::stop-commands::t ## h\\|i");
     expect(report.summary).not.toContain("\n## h");
+  });
+});
+
+describe("buildReport: counts are pluralized in the summary and the annotations", () => {
+  it("a single locale reads as one locale in every aggregate line", () => {
+    expect(buildReport(summary({ locales: [locale()], succeeded: ["de"] }), 0).summary).toContain(
+      "1 locale: 1 succeeded",
+    );
+    expect(
+      buildReport(checkResult({ locales: [checkLocale()] }), 0, "", "check").summary,
+    ).toContain("1 locale: 1 in sync, 0 drifted");
+    expect(buildReport(diffResult({ locales: [diffLocale()] }), 0, "", "diff").summary).toContain(
+      "1 locale: 1 clean, 0 pending",
+    );
+  });
+
+  it("several locales keep the plural, and the diff verb agrees with the pending count", () => {
+    const pending = diffResult({
+      hasPendingChanges: true,
+      locales: [
+        diffLocale({ missing: ["a"], hasPendingChanges: true }),
+        diffLocale({ locale: "fr" }),
+      ],
+    });
+    const oneOfTwo = buildReport(pending, 1, "", "diff").summary;
+    expect(oneOfTwo).toContain("2 locales: 1 clean, 1 pending");
+    expect(oneOfTwo).toContain("Step failed: 1 of 2 locales has pending changes.");
+
+    const bothPending = diffResult({
+      hasPendingChanges: true,
+      locales: [
+        diffLocale({ missing: ["a"], hasPendingChanges: true }),
+        diffLocale({ locale: "fr", changed: ["b"], hasPendingChanges: true }),
+      ],
+    });
+    expect(buildReport(bothPending, 1, "", "diff").summary).toContain(
+      "Step failed: 2 of 2 locales have pending changes.",
+    );
+  });
+
+  it("quality totals use the singular for one and the plural otherwise", () => {
+    const report = buildReport(
+      qaResult([["de", [placeholderError, placeholderError, lengthWarning]]]),
+      1,
+      "",
+      "check",
+      { qaStrict: true },
+    );
+    expect(report.summary).toContain("quality check: 2 errors, 1 warning");
+    expect(report.summary).toContain(
+      "Step failed: the quality check found 2 errors, 1 warning, and 0 incomplete plurals.",
+    );
+  });
+
+  it("several unreviewed translations keep the plural in the failure line", () => {
+    const report = buildReport(reviewResult([["de", ["a", "b"]]]), 1, "", "check");
+    expect(report.summary).toContain(
+      "Step failed: [REVIEW_REQUIRED] 2 machine-written translations are not approved in verbatra.provenance.json.",
+    );
   });
 });
