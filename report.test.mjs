@@ -4,6 +4,7 @@ import {
   extractCliError,
   NEEDS_HUMAN_EXIT_CODE,
   parseErrorEnvelope,
+  parseLocaleFiles,
   parseSummaryJson,
   resolveExitCode,
   WIRING_FAILURE_EXIT_CODE,
@@ -1603,6 +1604,170 @@ describe("buildReport: a whole-run error envelope surfaces its hint and cause", 
     expect(report.annotations[0]).toContain("Next step: x%0A::stop-commands::t%0A## h|i");
     expect(report.summary).toContain("Next step: x ::stop-commands::t ## h\\|i");
     expect(report.summary).not.toContain("\n## h");
+  });
+});
+
+const localeFiles = { de: "locales/de.json", fr: "locales/fr.json" };
+
+describe("buildReport: annotations name the locale file when the action resolved it", () => {
+  it("a drifted check locale is annotated on its file", () => {
+    const report = buildReport(
+      checkResult({ inSync: false, locales: [checkLocale({ inSync: false, missing: 1 })] }),
+      1,
+      "",
+      "check",
+      { localeFiles },
+    );
+    expect(report.annotations).toEqual([
+      "::error file=locales/de.json,title=verbatra check%3A de::[LOCALE_DRIFTED] 1 missing, 0 stale",
+    ]);
+  });
+
+  it("quality findings and incomplete plurals point at the file of their own locale", () => {
+    const result = qaResult([
+      ["de", [placeholderError]],
+      ["fr", [lengthWarning]],
+    ]);
+    const withPlurals = {
+      ...result,
+      locales: result.locales.map((entry) =>
+        entry.locale === "fr" ? { ...entry, incompletePlurals: [cartPlural] } : entry,
+      ),
+    };
+    const report = buildReport(withPlurals, 1, "", "check", { localeFiles });
+    expect(report.annotations).toEqual([
+      "::error file=locales/de.json,title=verbatra qa%3A de::[placeholder] greeting (-{name}, +{nom})",
+      "::warning file=locales/fr.json,title=verbatra qa%3A fr::[LENGTH_RATIO] title",
+      "::warning file=locales/fr.json,title=verbatra check%3A fr::[PLURAL_CATEGORIES_INCOMPLETE] 1 plural lacks CLDR plural categories the language uses: cart {count} (missing few, many)",
+    ]);
+  });
+
+  it("an unreviewed locale is annotated on its file, the unreadable provenance state on none", () => {
+    const report = buildReport(reviewResult([["de", ["checkout.title"]]]), 1, "", "check", {
+      localeFiles,
+    });
+    expect(report.annotations).toEqual([
+      "::error file=locales/de.json,title=verbatra review%3A de::[REVIEW_REQUIRED] 1 machine-written translation is not approved: checkout.title",
+    ]);
+    const unreadable = buildReport(
+      checkResult({
+        locales: [checkLocale()],
+        review: { reviewed: false, unreviewed: 0, code: "REVIEW_STATE_UNREADABLE" },
+      }),
+      1,
+      "",
+      "check",
+      { localeFiles },
+    );
+    expect(unreadable.annotations[0]).toMatch(/^::error title=verbatra review::/);
+  });
+
+  it("a pending diff locale is annotated on its file", () => {
+    const report = buildReport(
+      diffResult({
+        hasPendingChanges: true,
+        locales: [diffLocale({ missing: ["a"], hasPendingChanges: true })],
+      }),
+      1,
+      "",
+      "diff",
+      { localeFiles },
+    );
+    expect(report.annotations).toEqual([
+      "::error file=locales/de.json,title=verbatra diff%3A de::[LOCALE_PENDING] missing: a",
+    ]);
+  });
+
+  it("failed and partial translate locales are annotated on their files", () => {
+    const report = buildReport(
+      summary({
+        locales: [
+          locale({ locale: "de", status: "failed", error: { code: "X", message: "boom" } }),
+          locale({ locale: "fr", status: "partial", translated: ["a"], providerFailures: ["b"] }),
+        ],
+        failed: ["de"],
+        partial: ["fr"],
+      }),
+      1,
+      "",
+      "translate",
+      { localeFiles },
+    );
+    expect(report.annotations).toEqual([
+      "::error file=locales/de.json,title=verbatra%3A de::[X] boom",
+      "::error file=locales/fr.json,title=verbatra%3A fr::[LOCALE_PARTIAL] 1 translated, 1 key withheld (provider failure: b)",
+    ]);
+  });
+
+  it("a needs-human locale is annotated on its file", () => {
+    const report = buildReport(
+      summary({ locales: [locale({ unfilled: ["a", "b"] })] }),
+      NEEDS_HUMAN_EXIT_CODE,
+      "",
+      "translate",
+      { localeFiles },
+    );
+    expect(report.annotations).toEqual([
+      "::warning file=locales/de.json,title=verbatra%3A de::[NEEDS_HUMAN] 2 keys need a human translation (unfilled: a, b)",
+    ]);
+  });
+
+  it("a locale missing from the mapping falls back to an annotation without a file", () => {
+    const report = buildReport(
+      checkResult({
+        inSync: false,
+        locales: [checkLocale({ locale: "it", inSync: false, missing: 2 })],
+      }),
+      1,
+      "",
+      "check",
+      { localeFiles },
+    );
+    expect(report.annotations).toEqual([
+      "::error title=verbatra check%3A it::[LOCALE_DRIFTED] 2 missing, 0 stale",
+    ]);
+  });
+
+  it("no mapping, a non-object mapping, or an inherited key never yields a file", () => {
+    const drifted = checkResult({
+      inSync: false,
+      locales: [checkLocale({ locale: "toString", inSync: false, missing: 1 })],
+    });
+    for (const options of [{}, { localeFiles: null }, { localeFiles: "de.json" }, { localeFiles }]) {
+      expect(buildReport(drifted, 1, "", "check", options).annotations[0]).toMatch(
+        /^::error title=/,
+      );
+    }
+    expect(
+      buildReport(drifted, 1, "", "check", { localeFiles: { toString: "" } }).annotations[0],
+    ).toMatch(/^::error title=/);
+  });
+
+  it("a hostile file path is escaped so it cannot add a property or forge a command", () => {
+    const report = buildReport(
+      checkResult({ inSync: false, locales: [checkLocale({ inSync: false, missing: 1 })] }),
+      1,
+      "",
+      "check",
+      { localeFiles: { de: "a,line=9:x\n::stop-commands::y%" } },
+    );
+    expect(report.annotations).toEqual([
+      "::error file=a%2Cline=9%3Ax%0A%3A%3Astop-commands%3A%3Ay%25,title=verbatra check%3A de::[LOCALE_DRIFTED] 1 missing, 0 stale",
+    ]);
+  });
+});
+
+describe("parseLocaleFiles", () => {
+  it("keeps only non-empty string paths from a JSON object", () => {
+    expect(parseLocaleFiles('{"de":"locales/de.json","fr":"","it":3}\n')).toEqual({
+      de: "locales/de.json",
+    });
+  });
+
+  it("returns an empty mapping for empty, malformed, or non-object input", () => {
+    for (const text of [undefined, "", "  ", "{", "null", "[1]", '"de"']) {
+      expect(parseLocaleFiles(text)).toEqual({});
+    }
   });
 });
 

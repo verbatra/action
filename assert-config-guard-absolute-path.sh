@@ -72,6 +72,7 @@ env PATH="$stub_dir:$PATH" \
   REQUIRE_REVIEWED="false" \
   SUMMARY_FILE="$work_dir/positive-summary.json" \
   ERROR_FILE="$positive_error" \
+  LOCALE_FILES_FILE="$work_dir/locale-files.json" \
   GITHUB_OUTPUT="$positive_github_output" \
   bash --noprofile --norc -eo pipefail "$guard_script" >"$positive_output" 2>&1 || positive_status=$?
 
@@ -127,6 +128,7 @@ env PATH="$stub_dir:$PATH" \
   REQUIRE_REVIEWED="false" \
   SUMMARY_FILE="$work_dir/negative-summary.json" \
   ERROR_FILE="$negative_error" \
+  LOCALE_FILES_FILE="$work_dir/locale-files.json" \
   GITHUB_OUTPUT="$negative_github_output" \
   bash --noprofile --norc -eo pipefail "$guard_script" >"$negative_output" 2>&1 || negative_status=$?
 

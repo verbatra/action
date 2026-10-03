@@ -17,12 +17,45 @@ function plural(count, singular, pluralForm = `${singular}s`) {
   return `${count} ${count === 1 ? singular : pluralForm}`;
 }
 
-function annotation(level, title, code, message) {
-  return `::${level} title=${escapeProperty(title)}::${escapeData(`[${code}] ${message}`)}`;
+function annotationProperties(title, file) {
+  const titleProperty = `title=${escapeProperty(title)}`;
+  return file === undefined ? titleProperty : `file=${escapeProperty(file)},${titleProperty}`;
 }
 
-function errorAnnotation(title, code, message) {
-  return annotation("error", title, code, message);
+function annotation(level, title, code, message, file) {
+  return `::${level} ${annotationProperties(title, file)}::${escapeData(`[${code}] ${message}`)}`;
+}
+
+function errorAnnotation(title, code, message, file) {
+  return annotation("error", title, code, message, file);
+}
+
+function localeFile(options, locale) {
+  const files = options.localeFiles;
+  if (files === null || typeof files !== "object" || !Object.hasOwn(files, locale)) {
+    return undefined;
+  }
+  const file = files[locale];
+  return typeof file === "string" && file !== "" ? file : undefined;
+}
+
+export function parseLocaleFiles(text) {
+  const trimmed = String(text ?? "").trim();
+  if (trimmed === "") {
+    return {};
+  }
+  let record;
+  try {
+    record = JSON.parse(trimmed);
+  } catch {
+    return {};
+  }
+  if (record === null || typeof record !== "object" || Array.isArray(record)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(record).filter(([, file]) => typeof file === "string" && file !== ""),
+  );
 }
 
 function unwrapSummaryEnvelope(record) {
@@ -195,13 +228,14 @@ function findingMessage(finding) {
   return details === "" ? finding.key : `${finding.key} (${details})`;
 }
 
-function qaAnnotations(result) {
+function qaAnnotations(result, options) {
   return qaFindings(result).map(({ locale, finding }) =>
     annotation(
       findingLevel(finding),
       `verbatra qa: ${locale}`,
       finding.reason,
       findingMessage(finding),
+      localeFile(options, locale),
     ),
   );
 }
@@ -294,13 +328,14 @@ function incompletePluralMessage(entry, escape = String) {
   return `${noun} CLDR plural categories the language uses: ${details}`;
 }
 
-function incompletePluralAnnotations(result) {
+function incompletePluralAnnotations(result, options) {
   return incompletePluralLocales(result).map((entry) =>
     annotation(
       "warning",
       `verbatra check: ${entry.locale}`,
       "PLURAL_CATEGORIES_INCOMPLETE",
       incompletePluralMessage(entry),
+      localeFile(options, entry.locale),
     ),
   );
 }
@@ -342,7 +377,7 @@ function unreviewedMessage(entry, escape = String) {
 const UNREADABLE_REVIEW_MESSAGE =
   "verbatra.provenance.json is corrupt or was written by a newer verbatra, so no review decision can be read and the review gate fails.";
 
-function reviewAnnotations(result) {
+function reviewAnnotations(result, options) {
   if (!reviewFailed(result)) {
     return [];
   }
@@ -351,7 +386,12 @@ function reviewAnnotations(result) {
   }
   const code = result.review.code ?? "REVIEW_REQUIRED";
   return unreviewedLocales(result).map((entry) =>
-    errorAnnotation(`verbatra review: ${entry.locale}`, code, unreviewedMessage(entry)),
+    errorAnnotation(
+      `verbatra review: ${entry.locale}`,
+      code,
+      unreviewedMessage(entry),
+      localeFile(options, entry.locale),
+    ),
   );
 }
 
@@ -454,23 +494,28 @@ function checkMarkdown(result, exitCode, options = {}) {
   return lines.join("\n");
 }
 
-function driftAnnotations(result, exitCode) {
+function driftAnnotations(result, exitCode, options) {
   if (exitCode === 0) {
     return [];
   }
   return result.locales
     .filter((entry) => !entry.inSync)
     .map((entry) =>
-      errorAnnotation(`verbatra check: ${entry.locale}`, "LOCALE_DRIFTED", driftDetail(entry)),
+      errorAnnotation(
+        `verbatra check: ${entry.locale}`,
+        "LOCALE_DRIFTED",
+        driftDetail(entry),
+        localeFile(options, entry.locale),
+      ),
     );
 }
 
-function checkAnnotations(result, exitCode) {
+function checkAnnotations(result, exitCode, options) {
   return [
-    ...driftAnnotations(result, exitCode),
-    ...reviewAnnotations(result),
-    ...qaAnnotations(result),
-    ...incompletePluralAnnotations(result),
+    ...driftAnnotations(result, exitCode, options),
+    ...reviewAnnotations(result, options),
+    ...qaAnnotations(result, options),
+    ...incompletePluralAnnotations(result, options),
   ];
 }
 
@@ -531,14 +576,19 @@ function diffMarkdown(result, exitCode) {
   return lines.join("\n");
 }
 
-function diffAnnotations(result, exitCode) {
+function diffAnnotations(result, exitCode, options) {
   if (exitCode === 0) {
     return [];
   }
   return result.locales
     .filter((entry) => entry.hasPendingChanges)
     .map((entry) =>
-      errorAnnotation(`verbatra diff: ${entry.locale}`, "LOCALE_PENDING", pendingDetail(entry)),
+      errorAnnotation(
+        `verbatra diff: ${entry.locale}`,
+        "LOCALE_PENDING",
+        pendingDetail(entry),
+        localeFile(options, entry.locale),
+      ),
     );
 }
 
@@ -561,12 +611,20 @@ function needsHumanDetail(entry, escape = String) {
   return `${plural(total, "key needs", "keys need")} a human translation (${parts.join("; ")})`;
 }
 
-function needsHumanAnnotations(result) {
+function needsHumanAnnotations(result, options) {
   return result.locales.flatMap((entry) => {
     const detail = needsHumanDetail(entry);
     return detail === null
       ? []
-      : [annotation("warning", `verbatra: ${entry.locale}`, "NEEDS_HUMAN", detail)];
+      : [
+          annotation(
+            "warning",
+            `verbatra: ${entry.locale}`,
+            "NEEDS_HUMAN",
+            detail,
+            localeFile(options, entry.locale),
+          ),
+        ];
   });
 }
 
@@ -601,19 +659,20 @@ function translateMarkdown(result, _exitCode, options = {}) {
 
 function translateAnnotations(result, exitCode, options = {}) {
   if (options.needsHuman === true) {
-    return needsHumanAnnotations(result);
+    return needsHumanAnnotations(result, options);
   }
   if (exitCode !== 1) {
     return [];
   }
   return result.locales.flatMap((entry) => {
+    const file = localeFile(options, entry.locale);
     if (entry.status === "failed") {
       const { code, message } = resolveLocaleError(entry);
-      return [errorAnnotation(`verbatra: ${entry.locale}`, code, message)];
+      return [errorAnnotation(`verbatra: ${entry.locale}`, code, message, file)];
     }
     if (entry.status === "partial") {
       return [
-        errorAnnotation(`verbatra: ${entry.locale}`, "LOCALE_PARTIAL", partialDetail(entry)),
+        errorAnnotation(`verbatra: ${entry.locale}`, "LOCALE_PARTIAL", partialDetail(entry), file),
       ];
     }
     return [];

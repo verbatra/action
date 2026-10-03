@@ -52,6 +52,7 @@ run_guard() {
     REQUIRE_REVIEWED="$require_reviewed" \
     SUMMARY_FILE="$work_dir/summary.json" \
     ERROR_FILE="$work_dir/error.txt" \
+    LOCALE_FILES_FILE="$work_dir/locale-files.json" \
     GITHUB_OUTPUT="$work_dir/github-output.txt" \
     bash --noprofile --norc -eo pipefail "$guard_script" >"$work_dir/output.txt" 2>&1 || status=$?
   return "$status"

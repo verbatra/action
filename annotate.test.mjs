@@ -435,3 +435,36 @@ describe("annotate.mjs: a --json error envelope on stdout reaches the report", (
     );
   });
 });
+
+describe("annotate.mjs: the locale file mapping reaches the annotations", () => {
+  it("annotates a drifted locale on the file the mapping names", async () => {
+    const summaryFile = fixture("summary.json", JSON.stringify(checkEnvelope()));
+    const errorFile = fixture("error.txt", "");
+    const localeFilesFile = fixture("locale-files.json", '{"de":"apps/web/locales/de.json"}\n');
+
+    const { exitSpy, writeSpy } = await runInProcess(
+      [summaryFile, errorFile, "1", "check", localeFilesFile],
+      join(workDir, "step-summary.md"),
+    );
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(writeSpy).toHaveBeenCalledWith(
+      "::error file=apps/web/locales/de.json,title=verbatra check%3A de::[LOCALE_DRIFTED] 2 missing, 0 stale\n",
+    );
+  });
+
+  it("an empty or missing mapping file leaves the annotation without a file", async () => {
+    const summaryFile = fixture("summary.json", JSON.stringify(checkEnvelope()));
+    const errorFile = fixture("error.txt", "");
+    const emptyFile = fixture("locale-files.json", "");
+
+    for (const mapping of [emptyFile, join(workDir, "absent.json")]) {
+      const { writeSpy } = await runInProcess(
+        [summaryFile, errorFile, "1", "check", mapping],
+        join(workDir, "step-summary.md"),
+      );
+      expect(writeSpy.mock.calls[0][0]).toMatch(/^::error title=verbatra check%3A de::/);
+      vi.restoreAllMocks();
+    }
+  });
+});
