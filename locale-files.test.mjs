@@ -1,9 +1,12 @@
+import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { fileURLToPath } from "node:url";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const scriptUrl = new URL("./locale-files.mjs", import.meta.url);
+const scriptPath = fileURLToPath(scriptUrl);
 
 let workDir;
 let importCase = 0;
@@ -12,6 +15,7 @@ let originalWorkspace;
 
 async function importModule(argv) {
   process.argv = ["node", "locale-files.mjs", ...argv];
+  vi.spyOn(process, "exit").mockImplementation(() => undefined);
   importCase += 1;
   return import(/* @vite-ignore */ `${scriptUrl.href}?case=${importCase}`);
 }
@@ -48,6 +52,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   rmSync(workDir, { recursive: true, force: true });
   process.argv = originalArgv;
   if (originalWorkspace === undefined) {
@@ -96,6 +101,27 @@ describe("resolveLocaleFiles", () => {
     });
     expect(sdk.calls.loadConfig).toEqual({ cwd, configPath: join(cwd, "verbatra.config.ts") });
     expect(sdk.calls.resolver).toEqual({ cwd, resolverConfig: config });
+  });
+
+  it("keeps the other locales when the resolver throws for one", async () => {
+    const { resolveLocaleFiles } = await importModule(["", "", "", join(workDir, "out.json")]);
+    const sdk = {
+      loadConfig: async () => ({ sourceLocale: "en", targetLocales: ["de", "fr"] }),
+      createLocalePathResolver: (cwd) => ({
+        pathFor: (locale) => {
+          if (locale === "de") {
+            throw new Error("LOCALE_LAYOUT_INVALID");
+          }
+          return join(cwd, `${locale}.json`);
+        },
+      }),
+    };
+    const files = await resolveLocaleFiles(sdk, {
+      cwd: workDir,
+      configPath: "verbatra.config.ts",
+      workspace: workDir,
+    });
+    expect(files).toEqual({ en: "en.json", fr: "fr.json" });
   });
 
   it("leaves out a locale whose file lies outside the workspace", async () => {
@@ -150,5 +176,84 @@ module.exports = {
     await importModule([installDir, workDir, "verbatra.config.ts", outputFile]);
 
     expect(readFileSync(outputFile, "utf8")).toBe("{}\n");
+  });
+});
+
+describe("resolveWithinDeadline", () => {
+  it("returns the resolved mapping when it settles in time", async () => {
+    const { resolveWithinDeadline } = await importModule(["", "", "", join(workDir, "o.json")]);
+    await expect(resolveWithinDeadline(async () => ({ de: "de.json" }), 1000)).resolves.toEqual({
+      de: "de.json",
+    });
+  });
+
+  it("returns an empty mapping when resolving never settles", async () => {
+    const { resolveWithinDeadline } = await importModule(["", "", "", join(workDir, "o.json")]);
+    await expect(resolveWithinDeadline(() => new Promise(() => {}), 20)).resolves.toEqual({});
+  });
+
+  it("returns an empty mapping when resolving throws or rejects", async () => {
+    const { resolveWithinDeadline } = await importModule(["", "", "", join(workDir, "o.json")]);
+    await expect(
+      resolveWithinDeadline(() => {
+        throw new Error("sync");
+      }, 1000),
+    ).resolves.toEqual({});
+    await expect(
+      resolveWithinDeadline(() => Promise.reject(new Error("async")), 1000),
+    ).resolves.toEqual({});
+  });
+
+  it("bounds the helper at ten seconds", async () => {
+    const { RESOLVE_DEADLINE_MS } = await importModule(["", "", "", join(workDir, "o.json")]);
+    expect(RESOLVE_DEADLINE_MS).toBe(10_000);
+  });
+});
+
+describe("locale-files.mjs always exits", () => {
+  it("exits 0 and writes an empty mapping when loadConfig rejects", async () => {
+    const installDir = join(workDir, "install");
+    installFakeSdk(
+      installDir,
+      `module.exports = { loadConfig: async () => { throw new Error("CONFIG_INVALID"); } };\n`,
+    );
+    const outputFile = join(workDir, "locale-files.json");
+
+    await importModule([installDir, workDir, "verbatra.config.ts", outputFile]);
+
+    expect(process.exit).toHaveBeenCalledWith(0);
+    expect(readFileSync(outputFile, "utf8")).toBe("{}\n");
+  });
+
+  it("exits 0 without throwing when the mapping cannot be written", async () => {
+    await importModule([join(workDir, "no-install"), workDir, "c.ts", join(workDir, "no", "x")]);
+    expect(process.exit).toHaveBeenCalledWith(0);
+  });
+
+  it("a config that leaves an interval running does not keep the process alive", () => {
+    const installDir = join(workDir, "install");
+    installFakeSdk(
+      installDir,
+      `const { join } = require("node:path");
+module.exports = {
+  loadConfig: async () => {
+    setInterval(() => {}, 1000);
+    return { sourceLocale: "en", targetLocales: ["de"] };
+  },
+  createLocalePathResolver: (cwd) => ({ pathFor: (locale) => join(cwd, locale + ".json") }),
+};
+`,
+    );
+    const outputFile = join(workDir, "locale-files.json");
+
+    const child = spawnSync(
+      process.execPath,
+      [scriptPath, installDir, workDir, "verbatra.config.ts", outputFile],
+      { encoding: "utf8", env: { ...process.env, GITHUB_WORKSPACE: workDir }, timeout: 5000 },
+    );
+
+    expect(child.error).toBeUndefined();
+    expect(child.status).toBe(0);
+    expect(JSON.parse(readFileSync(outputFile, "utf8"))).toEqual({ en: "en.json", de: "de.json" });
   });
 });
