@@ -313,8 +313,10 @@ function qaMarkdownLines(result, exitCode, qaStrict) {
 }
 
 function pluralDetail(incompletePlural) {
-  const argument = typeof incompletePlural.argument === "string" ? ` {${incompletePlural.argument}}` : "";
-  return `${incompletePlural.key}${argument} (missing ${(incompletePlural.missing ?? []).join(", ")})`;
+  const argument =
+    typeof incompletePlural.argument === "string" ? ` {${incompletePlural.argument}}` : "";
+  const missing = (incompletePlural.missing ?? []).join(", ");
+  return `${incompletePlural.key}${argument} (missing ${missing})`;
 }
 
 function incompletePluralLocales(result) {
