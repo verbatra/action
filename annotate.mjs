@@ -2,11 +2,12 @@ import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import {
   buildReport,
   parseErrorEnvelope,
+  parseLocaleFiles,
   parseSummaryJson,
   resolveExitCode,
 } from "./report.mjs";
 
-const [summaryFile, errorFile, exitCodeArg, commandArg] = process.argv.slice(2);
+const [summaryFile, errorFile, exitCodeArg, commandArg, localeFilesFile] = process.argv.slice(2);
 
 const readOrEmpty = (path) => (path && existsSync(path) ? readFileSync(path, "utf8") : "");
 
@@ -19,7 +20,11 @@ const report = buildReport(
   resolveExitCode(exitCodeArg),
   stderrText,
   commandArg || "translate",
-  { qaStrict: process.env.QA_STRICT === "true", errorEnvelope: parseErrorEnvelope(stdoutText) },
+  {
+    qaStrict: process.env.QA_STRICT === "true",
+    errorEnvelope: parseErrorEnvelope(stdoutText),
+    localeFiles: parseLocaleFiles(readOrEmpty(localeFilesFile)),
+  },
 );
 
 for (const annotation of report.annotations) {

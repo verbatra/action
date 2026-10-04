@@ -48,6 +48,7 @@ env VERBATRA_VERSION="0.9.3" \
   REQUIRE_REVIEWED="false" \
   SUMMARY_FILE="$summary_file" \
   ERROR_FILE="$error_file" \
+  LOCALE_FILES_FILE="$work_dir/locale-files.json" \
   GITHUB_OUTPUT="$github_output" \
   bash --noprofile --norc -eo pipefail "$guard_script" >"$stage1_output" 2>&1 || status=$?
 

@@ -67,6 +67,7 @@ env PATH="$stub_bin_dir:$PATH" \
   REQUIRE_REVIEWED="false" \
   SUMMARY_FILE="$work_dir/summary.json" \
   ERROR_FILE="$error_file" \
+  LOCALE_FILES_FILE="$work_dir/locale-files.json" \
   GITHUB_OUTPUT="$github_output" \
   bash --noprofile --norc -eo pipefail "$guard_script" >"$output" 2>&1 || status=$?
 

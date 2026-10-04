@@ -80,6 +80,13 @@ config search uses; it is invoked once from the `id: run` step, before
 `npm install`, so the guard can pass an explicit, already-verified `--config`
 path to the CLI.
 
+`locale-files.mjs` runs after the CLI and writes the locale-to-file mapping
+`annotate.mjs` reads: it loads the config through the installed `@verbatra/sdk`
+and its locale path resolver, and writes an empty mapping when either is
+missing or resolving takes longer than 10 seconds, so annotations then simply
+carry no `file=`. It always ends with `process.exit(0)`, so a config that leaves
+a timer or socket open cannot hold the step.
+
 The recognized config filenames and their precedence order in
 `resolve-config.mjs` (`SEARCH_PLACES`) are a point-in-time copy of
 `SEARCH_PLACES` in

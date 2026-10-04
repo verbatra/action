@@ -123,6 +123,7 @@ runs:
         REQUIRE_REVIEWED: ${{ inputs.require-reviewed }}
         SUMMARY_FILE: ${{ runner.temp }}/verbatra-summary.json
         ERROR_FILE: ${{ runner.temp }}/verbatra-error.txt
+        LOCALE_FILES_FILE: ${{ runner.temp }}/verbatra-locale-files.json
       run: |
         if ! [[ "$VERBATRA_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
           echo "::error::the version input must be an exact semver version, e.g. 1.2.3 or 1.2.3-next.0. Dist-tags such as 'latest', ranges, and prefixes such as '^' or '~' are not allowed."
@@ -202,6 +203,8 @@ runs:
         echo "summary_file=$SUMMARY_FILE" >>"$GITHUB_OUTPUT"
         echo "error_file=$ERROR_FILE" >>"$GITHUB_OUTPUT"
         echo "command=$COMMAND" >>"$GITHUB_OUTPUT"
+        echo "locale_files_file=$LOCALE_FILES_FILE" >>"$GITHUB_OUTPUT"
+        : >"$LOCALE_FILES_FILE"
         set +e
         install_dir="$(cd "${WORKING_DIRECTORY:-.}" 2>/dev/null && pwd)"
         if [ -z "$install_dir" ]; then
@@ -247,6 +250,7 @@ runs:
         if [ "$REQUIRE_REVIEWED" = "true" ]; then args+=(--require-reviewed); fi
         npm exec --prefix "$scratch_dir" -- verbatra "${args[@]}" >"$SUMMARY_FILE" 2>"$ERROR_FILE"
         echo "exit_code=$?" >>"$GITHUB_OUTPUT"
+        node "$GITHUB_ACTION_PATH/locale-files.mjs" "$scratch_dir" "$install_dir" "$resolved_config" "$LOCALE_FILES_FILE" >/dev/null 2>&1
         exit 0
 
     - name: Annotate and summarize
@@ -257,5 +261,6 @@ runs:
         ERROR_FILE: ${{ steps.run.outputs.error_file }}
         EXIT_CODE: ${{ steps.run.outputs.exit_code }}
         COMMAND: ${{ steps.run.outputs.command }}
+        LOCALE_FILES_FILE: ${{ steps.run.outputs.locale_files_file }}
         QA_STRICT: ${{ inputs.qa-strict }}
-      run: node "$GITHUB_ACTION_PATH/annotate.mjs" "$SUMMARY_FILE" "$ERROR_FILE" "$EXIT_CODE" "$COMMAND"
+      run: node "$GITHUB_ACTION_PATH/annotate.mjs" "$SUMMARY_FILE" "$ERROR_FILE" "$EXIT_CODE" "$COMMAND" "$LOCALE_FILES_FILE"
