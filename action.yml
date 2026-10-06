@@ -248,7 +248,7 @@ runs:
         if [ -n "$QA_SEVERITY" ]; then args+=(--severity "$QA_SEVERITY"); fi
         if [ "$QA_STRICT" = "true" ]; then args+=(--strict); fi
         if [ "$REQUIRE_REVIEWED" = "true" ]; then args+=(--require-reviewed); fi
-        npm exec --prefix "$scratch_dir" -- verbatra "${args[@]}" >"$SUMMARY_FILE" 2>"$ERROR_FILE"
+        npm exec --no --prefix "$scratch_dir" -- verbatra "${args[@]}" >"$SUMMARY_FILE" 2>"$ERROR_FILE"
         echo "exit_code=$?" >>"$GITHUB_OUTPUT"
         node "$GITHUB_ACTION_PATH/locale-files.mjs" "$scratch_dir" "$install_dir" "$resolved_config" "$LOCALE_FILES_FILE" >/dev/null 2>&1
         exit 0
