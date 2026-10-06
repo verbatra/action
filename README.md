@@ -419,6 +419,8 @@ A per-locale annotation names that locale's file (`file=`), so GitHub shows it o
 
 For `translate`, a locale's status is `ok`, `partial`, or `failed`. A `partial` locale was written, but some of its keys were withheld by the integrity gate, a provider failure, or the token budget, and the CLI exits 1 for it just as for a failed one. It gets its own `LOCALE_PARTIAL` annotation naming how many keys landed and which were withheld, a `partial` value in the status column, a line under "Partial locales" in the summary, and its own count on the aggregate line (`3 locales: 1 succeeded, 1 partial, 1 failed`). A failed locale with no error of its own, because every key was withheld, names its withheld keys the same way.
 
+The JSON this action reads from `verbatra check --json` follows https://verbatra.kreitz-webdev.de/schema/v1/check-envelope.json; every command's envelope is listed at https://verbatra.kreitz-webdev.de/schema/v1.
+
 ## Versioning
 
 `v1` is the only maintained line: every fix and feature lands there. Pin `v1` for convenience (it moves to the latest `v1.x.y` release), a specific `v1.x.y` tag for an immutable minor pin, or a full commit SHA for the most reproducible reference:
