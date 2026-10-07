@@ -2,7 +2,7 @@
 
 Thanks for your interest in contributing. This repository holds the composite
 GitHub Action that runs the verbatra CLI in CI. It is a small repository on
-purpose: `action.yml`, three plain ESM scripts, their tests, and the workflows.
+purpose: `action.yml`, a few plain ESM scripts, their tests, and the workflows.
 
 The translation engine itself lives in the
 [main verbatra repository](https://github.com/verbatra/verbatra). Read
@@ -28,7 +28,7 @@ anything here.
 
 ## Prerequisites
 
-- Node.js >= 22.14.0 (the `engines` floor, and the lower half of the CI matrix)
+- Node.js >= 22.18.0 (the `engines` floor, and the lower half of the CI matrix)
 - npm (this repository uses npm and a committed `package-lock.json`, unlike the
   main repository, which uses pnpm)
 
@@ -45,6 +45,23 @@ installs the same way.
 
 - `npm test` - run the Vitest suite with coverage
 - `npm run test:watch` - the same suite in watch mode
+- `npm run docs:usage` - regenerate the README input reference from `action.yml`
+- `npm run docs:usage:check` - fail when the README input reference is out of date
+
+## The README input reference
+
+The commented-YAML block between the `<!-- start usage -->` and
+`<!-- end usage -->` markers in `README.md` is generated from `action.yml` by
+`generate-usage.mjs`, with the rendering in `usage-block.mjs`. It lists every
+input in declaration order with its description, its `# Default:` line, and its
+rendered default, and nothing outside the markers is touched. Never edit the
+block by hand: change `action.yml` and run `npm run docs:usage`. CI runs
+`npm run docs:usage:check` and fails the build when the committed block differs
+from a fresh regeneration.
+
+The block has no `required` field, so a change to an input's `required` flag
+also means updating the sentence directly above the markers that names the
+required inputs.
 
 ## Tests and coverage
 
@@ -62,6 +79,13 @@ directory, following the same recognized-filename precedence the CLI's own
 config search uses; it is invoked once from the `id: run` step, before
 `npm install`, so the guard can pass an explicit, already-verified `--config`
 path to the CLI.
+
+`locale-files.mjs` runs after the CLI and writes the locale-to-file mapping
+`annotate.mjs` reads: it loads the config through the installed `@verbatra/sdk`
+and its locale path resolver, and writes an empty mapping when either is
+missing or resolving takes longer than 10 seconds, so annotations then simply
+carry no `file=`. It always ends with `process.exit(0)`, so a config that leaves
+a timer or socket open cannot hold the step.
 
 The recognized config filenames and their precedence order in
 `resolve-config.mjs` (`SEARCH_PLACES`) are a point-in-time copy of
@@ -101,10 +125,14 @@ pull request.
   inherited" negative case). Each fixture's README states what it guards.
 
 The job also asserts that each input guard rejects rather than silently accepts: an
-unsupported `command`, `dry-run` combined with a read-only command, a floating
-`version`, a `version` below the minimum the action supports, a `version` whose
-second line forges a workflow command, and a `working-directory` with no
-recognized verbatra config file directly inside it. If you add a guard to
+unsupported `command`, a `dry-run`, `qa`, `qa-strict`, or `require-reviewed`
+value other than `"true"` or `"false"`, `dry-run` combined with a read-only
+command, `qa` or `require-reviewed` combined with a command other than `check`,
+`qa-severity` or `qa-strict` without `qa`, `qa` or `require-reviewed` with a
+`version` below `0.12.0` (a `0.12.0-next.*` prerelease included, on purpose), a
+floating `version`, a `version` below the minimum the action supports, a
+`version` whose second line forges a workflow command, and a
+`working-directory` with no recognized verbatra config file directly inside it. If you add a guard to
 `action.yml`, add the matching rejection step and its assertion.
 
 Every `uses:` reference in this repository is pinned to a full 40-character
@@ -119,6 +147,26 @@ as it ships. No new major version number is cut for a breaking change; it lands
 in `v1` like everything else. An early `v2` prerelease existed briefly and was
 retired in favor of this single-line model; see
 [Versioning](README.md#versioning) in the README.
+
+### Release checklist
+
+Before tagging a release that ships `qa`, `require-reviewed`, or the
+`needs-human` output, and only once `@verbatra/cli` `0.12.0` is on npm, add the
+positive self-tests the CI job cannot run yet, each pinned to `version: 0.12.0`:
+
+- `command: check` with `qa: "true"` against `.github/fixtures/in-sync`, which
+  must pass the gate.
+- `command: check` with `qa: "true"` against a new fixture holding a committed
+  translation that drops a placeholder, which must fail the step.
+- `command: check` with `require-reviewed: "true"` against a new fixture whose
+  committed `verbatra.provenance.json` holds a machine-written value that is not
+  approved, which must fail the step.
+- `translate` against a new fixture whose config sets `provider: { id: "none" }`
+  and leaves a key unfilled, which must pass the step with the `needs-human`
+  output set to `"true"`.
+
+Then bump the `version` examples in `README.md` for these features if needed and
+move the `v1` tag.
 
 ## Commit convention
 
@@ -139,15 +187,9 @@ character.
 4. If you changed `action.yml`, say how you exercised it; the self-test job in CI
    covers all three commands and every input guard, but not every combination of
    `config-path`, `working-directory`, and `node-version`.
-5. If you added, removed, or changed an input in `action.yml`, update the
-   commented-YAML block between the `<!-- start usage -->` and
-   `<!-- end usage -->` markers in `README.md` in the same change. This covers
-   the set of inputs and their order, and each input's name, description, and
-   rendered default. The block has no `required` field of its own, so a change to
-   an input's `required` flag also means updating the sentence directly above the
-   markers that says which inputs are required. That block is the input reference
-   and its text comes from `action.yml`. There is no generator for it yet;
-   writing one and running it in CI to fail on drift is a good follow-up.
+5. If you changed an input in `action.yml`, run `npm run docs:usage` and commit
+   the regenerated `README.md` in the same change. See
+   [The README input reference](#the-readme-input-reference).
 6. Use Conventional Commit messages.
 7. Open a pull request with the template, describing what changed and how you
    tested it. Keep the pull request scoped and make sure CI is green.
