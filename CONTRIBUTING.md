@@ -28,7 +28,7 @@ anything here.
 
 ## Prerequisites
 
-- Node.js >= 22.14.0 (the `engines` floor, and the lower half of the CI matrix)
+- Node.js >= 22.18.0 (the `engines` floor, and the lower half of the CI matrix)
 - npm (this repository uses npm and a committed `package-lock.json`, unlike the
   main repository, which uses pnpm)
 
