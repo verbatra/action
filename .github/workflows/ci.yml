@@ -23,14 +23,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ["22.14.0", "24"]
+        node-version: ["22.18.0", "24"]
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
@@ -38,6 +38,8 @@ jobs:
         run: npm ci
       - name: Run the test suite with coverage
         run: npm test
+      - name: Check the README input reference matches action.yml
+        run: npm run docs:usage:check
 
   self-test:
     name: Self-test the composite action
@@ -99,6 +101,127 @@ jobs:
           version: 0.9.3
           command: check
           working-directory: .github/fixtures/preserves-consumer-deps
+
+      - name: Run check with qa against the in-sync fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          qa: "true"
+
+      - name: Run check without qa against the placeholder-dropped fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/qa-placeholder-dropped
+
+      - name: Run check with qa against the placeholder-dropped fixture, which must fail the step
+        id: qa-placeholder-dropped
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/qa-placeholder-dropped
+          qa: "true"
+
+      - name: Assert check with qa failed on a committed translation that drops a placeholder
+        if: steps.qa-placeholder-dropped.outcome != 'failure'
+        run: |
+          echo "::error::action.yml passed check with qa against a translation that drops a placeholder; the quality check is not working"
+          exit 1
+
+      - name: Run check without require-reviewed against the unapproved fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/review-unapproved
+
+      - name: Run check with require-reviewed against the unapproved fixture, which must fail the step
+        id: review-unapproved
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/review-unapproved
+          require-reviewed: "true"
+
+      - name: Assert check with require-reviewed failed on an unapproved machine-written value
+        if: steps.review-unapproved.outcome != 'failure'
+        run: |
+          echo "::error::action.yml passed check with require-reviewed against unapproved machine-written values; the review gate is not working"
+          exit 1
+
+      - name: Run translate against the human-only fixture, which must pass with needs-human set
+        id: human-only
+        uses: ./
+        with:
+          version: 0.12.0
+          working-directory: .github/fixtures/human-only
+
+      - name: Assert the human-only run set the needs-human output
+        if: steps.human-only.outputs.needs-human != 'true'
+        run: |
+          echo "::error::translate against provider none left a key unfilled but needs-human was not true"
+          exit 1
+
+      - name: Run check with sensitive against the in-sync fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          sensitive: "true"
+
+      - name: Run check without sensitive against the sensitive-source fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/sensitive-source
+
+      - name: Run check with sensitive against the sensitive-source fixture, which must fail the step
+        id: sensitive-source
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/sensitive-source
+          sensitive: "true"
+
+      - name: Assert check with sensitive failed on a source holding an email address
+        if: steps.sensitive-source.outcome != 'failure'
+        run: |
+          echo "::error::action.yml passed check with sensitive against a source holding an email address; the sensitive scan is not working"
+          exit 1
+
+      - name: Run check without locales against the locales-subset fixture, which must fail the step
+        id: locales-all
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/locales-subset
+
+      - name: Assert check without locales failed on the drifted fr locale
+        if: steps.locales-all.outcome != 'failure'
+        run: |
+          echo "::error::action.yml passed check against a project with an empty fr locale; the locales-subset fixture no longer guards anything"
+          exit 1
+
+      - name: Run check with locales de against the locales-subset fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/locales-subset
+          locales: "de"
 
       - name: Assert the action never wrote anything into the consumer's own node_modules
         run: |
@@ -205,6 +328,261 @@ jobs:
           echo "::error::action.yml accepted dry-run together with command: check; the input was silently ignored instead of failing loudly"
           exit 1
 
+      - name: Reject a dry-run input that is not "true" or "false"
+        id: dry-run-not-boolean
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          working-directory: .github/fixtures/in-sync
+          dry-run: "yes"
+
+      - name: Assert the non-boolean dry-run input was rejected rather than read as false
+        if: steps.dry-run-not-boolean.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted dry-run: yes; the boolean input guard is not working"
+          exit 1
+
+      - name: Reject a qa input that is not "true" or "false"
+        id: qa-not-boolean
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          qa: "TRUE"
+
+      - name: Assert the non-boolean qa input was rejected rather than read as false
+        if: steps.qa-not-boolean.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted qa: TRUE; the boolean input guard is not working"
+          exit 1
+
+      - name: Reject a qa-strict input that is not "true" or "false"
+        id: qa-strict-not-boolean
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          qa-strict: "1"
+
+      - name: Assert the non-boolean qa-strict input was rejected rather than read as false
+        if: steps.qa-strict-not-boolean.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted qa-strict: 1; the boolean input guard is not working"
+          exit 1
+
+      - name: Reject qa combined with a command other than check
+        id: qa-with-translate
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          working-directory: .github/fixtures/in-sync
+          dry-run: "true"
+          qa: "true"
+
+      - name: Assert qa combined with translate was rejected
+        if: steps.qa-with-translate.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted qa together with command: translate; the qa command guard is not working"
+          exit 1
+
+      - name: Reject qa-strict without qa
+        id: qa-strict-alone
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          qa-strict: "true"
+
+      - name: Assert qa-strict without qa was rejected rather than silently ignored
+        if: steps.qa-strict-alone.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted qa-strict without qa; the input was silently ignored instead of failing loudly"
+          exit 1
+
+      - name: Reject qa with a version below the quality check's minimum
+        id: qa-below-minimum
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.11.1
+          command: check
+          working-directory: .github/fixtures/in-sync
+          qa: "true"
+
+      - name: Assert qa with a version below its minimum was rejected
+        if: steps.qa-below-minimum.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted qa with version 0.11.1, which has no check --qa; the qa minimum-version guard is not working"
+          exit 1
+
+      - name: Reject qa with a prerelease of the quality check's minimum version
+        id: qa-prerelease
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0-next.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          qa: "true"
+
+      - name: Assert qa with a 0.12.0 prerelease was rejected, as semver ranks it below 0.12.0
+        if: steps.qa-prerelease.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted qa with version 0.12.0-next.0; a prerelease ranks below its release, so the qa minimum-version guard must reject it"
+          exit 1
+
+      - name: Reject a require-reviewed input that is not "true" or "false"
+        id: require-reviewed-not-boolean
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          require-reviewed: "yes"
+
+      - name: Assert the non-boolean require-reviewed input was rejected rather than read as false
+        if: steps.require-reviewed-not-boolean.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted require-reviewed: yes; the boolean input guard is not working"
+          exit 1
+
+      - name: Reject require-reviewed combined with a command other than check
+        id: require-reviewed-with-diff
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: diff
+          working-directory: .github/fixtures/in-sync
+          require-reviewed: "true"
+
+      - name: Assert require-reviewed combined with diff was rejected
+        if: steps.require-reviewed-with-diff.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted require-reviewed together with command: diff; the require-reviewed command guard is not working"
+          exit 1
+
+      - name: Reject require-reviewed with a version below the review gate's minimum
+        id: require-reviewed-below-minimum
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.11.1
+          command: check
+          working-directory: .github/fixtures/in-sync
+          require-reviewed: "true"
+
+      - name: Assert require-reviewed with a version below its minimum was rejected
+        if: steps.require-reviewed-below-minimum.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted require-reviewed with version 0.11.1, which has no check --require-reviewed; the require-reviewed minimum-version guard is not working"
+          exit 1
+
+      - name: Reject require-reviewed with a prerelease of the review gate's minimum version
+        id: require-reviewed-prerelease
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0-next.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          require-reviewed: "true"
+
+      - name: Assert require-reviewed with a 0.12.0 prerelease was rejected, as semver ranks it below 0.12.0
+        if: steps.require-reviewed-prerelease.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted require-reviewed with version 0.12.0-next.0; a prerelease ranks below its release, so the require-reviewed minimum-version guard must reject it"
+          exit 1
+
+      - name: Reject sensitive with a version below the sensitive scan's minimum
+        id: sensitive-below-minimum
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.11.1
+          command: check
+          working-directory: .github/fixtures/in-sync
+          sensitive: "true"
+
+      - name: Assert sensitive with a version below its minimum was rejected
+        if: steps.sensitive-below-minimum.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted sensitive with version 0.11.1, which has no check --sensitive; the sensitive minimum-version guard is not working"
+          exit 1
+
+      - name: Reject sensitive with a prerelease of the sensitive scan's minimum version
+        id: sensitive-prerelease
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0-next.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          sensitive: "true"
+
+      - name: Assert sensitive with a 0.12.0 prerelease was rejected, as semver ranks it below 0.12.0
+        if: steps.sensitive-prerelease.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted sensitive with version 0.12.0-next.0; a prerelease ranks below its release, so the sensitive minimum-version guard must reject it"
+          exit 1
+
+      - name: Reject a locales input that is not a comma-separated list of locale codes
+        id: locales-malformed
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          locales: "de, fr"
+
+      - name: Assert the malformed locales input was rejected
+        if: steps.locales-malformed.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted locales: de, fr; the locales format guard is not working"
+          exit 1
+
+      - name: Reject a node-version below the CLI's Node.js floor
+        id: node-below-floor
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          node-version: "20"
+
+      - name: Assert the node-version below the CLI's floor was rejected
+        if: steps.node-below-floor.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted node-version 20, which is below the CLI's Node.js floor; the node-version guard is not working"
+          exit 1
+
+      - name: Reject a node-version on the unsupported 23 line
+        id: node-unsupported-line
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          node-version: "23"
+
+      - name: Assert the node-version on the unsupported 23 line was rejected
+        if: steps.node-unsupported-line.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted node-version 23, which is outside the CLI's supported Node.js range; the node-version guard is not working"
+          exit 1
+
       - name: Reject a version input below the minimum the action supports
         id: below-minimum
         continue-on-error: true
@@ -267,6 +645,18 @@ jobs:
 
       - name: Assert the config guard passes the resolved config path to the CLI via --config
         run: bash ./assert-config-guard-passthrough.sh
+
+      - name: Assert require-reviewed passes --require-reviewed to the CLI exactly when it is true
+        run: bash ./assert-require-reviewed-passthrough.sh
+
+      - name: Assert the node-version guard accepts only the Node.js range the CLI supports
+        run: bash ./assert-node-version-guard.sh
+
+      - name: Assert sensitive and locales pass --sensitive and --locales to the CLI only when set
+        run: bash ./assert-sensitive-locales-passthrough.sh
+
+      - name: Assert check sensitive findings are annotated and summarized without the matched text
+        run: bash ./assert-sensitive-report.sh
 
       - name: Assert an absolute config-path is used as-is, not re-resolved against working-directory
         run: bash ./assert-config-guard-absolute-path.sh

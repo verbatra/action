@@ -4,3 +4,7 @@ coverage/
 
 !.github/fixtures/preserves-consumer-deps/node_modules/
 !.github/fixtures/preserves-consumer-deps/node_modules/**
+
+.idea/
+.vscode/
+.verbatra-local/

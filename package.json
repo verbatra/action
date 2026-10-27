@@ -15,14 +15,17 @@
     "url": "https://github.com/verbatra/action/issues"
   },
   "engines": {
-    "node": ">=22.14.0"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "test": "vitest run --coverage",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "docs:usage": "node generate-usage.mjs",
+    "docs:usage:check": "node generate-usage.mjs --check"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "5.0.1",
-    "vitest": "5.0.1"
+    "@vitest/coverage-v8": "5.0.3",
+    "vitest": "5.0.3",
+    "yaml": "2.9.1"
   }
 }
