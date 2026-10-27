@@ -102,6 +102,127 @@ jobs:
           command: check
           working-directory: .github/fixtures/preserves-consumer-deps
 
+      - name: Run check with qa against the in-sync fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          qa: "true"
+
+      - name: Run check without qa against the placeholder-dropped fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/qa-placeholder-dropped
+
+      - name: Run check with qa against the placeholder-dropped fixture, which must fail the step
+        id: qa-placeholder-dropped
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/qa-placeholder-dropped
+          qa: "true"
+
+      - name: Assert check with qa failed on a committed translation that drops a placeholder
+        if: steps.qa-placeholder-dropped.outcome != 'failure'
+        run: |
+          echo "::error::action.yml passed check with qa against a translation that drops a placeholder; the quality check is not working"
+          exit 1
+
+      - name: Run check without require-reviewed against the unapproved fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/review-unapproved
+
+      - name: Run check with require-reviewed against the unapproved fixture, which must fail the step
+        id: review-unapproved
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/review-unapproved
+          require-reviewed: "true"
+
+      - name: Assert check with require-reviewed failed on an unapproved machine-written value
+        if: steps.review-unapproved.outcome != 'failure'
+        run: |
+          echo "::error::action.yml passed check with require-reviewed against unapproved machine-written values; the review gate is not working"
+          exit 1
+
+      - name: Run translate against the human-only fixture, which must pass with needs-human set
+        id: human-only
+        uses: ./
+        with:
+          version: 0.12.0
+          working-directory: .github/fixtures/human-only
+
+      - name: Assert the human-only run set the needs-human output
+        if: steps.human-only.outputs.needs-human != 'true'
+        run: |
+          echo "::error::translate against provider none left a key unfilled but needs-human was not true"
+          exit 1
+
+      - name: Run check with sensitive against the in-sync fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          sensitive: "true"
+
+      - name: Run check without sensitive against the sensitive-source fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/sensitive-source
+
+      - name: Run check with sensitive against the sensitive-source fixture, which must fail the step
+        id: sensitive-source
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/sensitive-source
+          sensitive: "true"
+
+      - name: Assert check with sensitive failed on a source holding an email address
+        if: steps.sensitive-source.outcome != 'failure'
+        run: |
+          echo "::error::action.yml passed check with sensitive against a source holding an email address; the sensitive scan is not working"
+          exit 1
+
+      - name: Run check without locales against the locales-subset fixture, which must fail the step
+        id: locales-all
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/locales-subset
+
+      - name: Assert check without locales failed on the drifted fr locale
+        if: steps.locales-all.outcome != 'failure'
+        run: |
+          echo "::error::action.yml passed check against a project with an empty fr locale; the locales-subset fixture no longer guards anything"
+          exit 1
+
+      - name: Run check with locales de against the locales-subset fixture, which must pass the gate
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/locales-subset
+          locales: "de"
+
       - name: Assert the action never wrote anything into the consumer's own node_modules
         run: |
           if ! git diff --exit-code HEAD -- .github/fixtures/preserves-consumer-deps/node_modules/zod .github/fixtures/preserves-consumer-deps/node_modules/debug; then
@@ -533,6 +654,9 @@ jobs:
 
       - name: Assert sensitive and locales pass --sensitive and --locales to the CLI only when set
         run: bash ./assert-sensitive-locales-passthrough.sh
+
+      - name: Assert check sensitive findings are annotated and summarized without the matched text
+        run: bash ./assert-sensitive-report.sh
 
       - name: Assert an absolute config-path is used as-is, not re-resolved against working-directory
         run: bash ./assert-config-guard-absolute-path.sh

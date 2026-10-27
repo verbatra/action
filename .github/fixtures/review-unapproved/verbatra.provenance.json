@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "locales": {
+    "de": {
+      "greeting": { "origin": "machine", "provider": "anthropic", "model": "claude-sonnet-4-6", "valueHash": "53a0bfcfacecef27" },
+      "farewell": { "origin": "machine", "provider": "anthropic", "model": "claude-sonnet-4-6", "valueHash": "643307421d566bca" }
+    }
+  }
+}
