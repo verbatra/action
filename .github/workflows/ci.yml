@@ -382,38 +382,6 @@ jobs:
           echo "::error::action.yml accepted require-reviewed with version 0.12.0-next.0; a prerelease ranks below its release, so the require-reviewed minimum-version guard must reject it"
           exit 1
 
-      - name: Reject a sensitive input that is not "true" or "false"
-        id: sensitive-not-boolean
-        continue-on-error: true
-        uses: ./
-        with:
-          version: 0.12.0
-          command: check
-          working-directory: .github/fixtures/in-sync
-          sensitive: "yes"
-
-      - name: Assert the non-boolean sensitive input was rejected rather than read as false
-        if: steps.sensitive-not-boolean.outcome != 'failure'
-        run: |
-          echo "::error::action.yml accepted sensitive: yes; the boolean input guard is not working"
-          exit 1
-
-      - name: Reject sensitive combined with a command other than check
-        id: sensitive-with-diff
-        continue-on-error: true
-        uses: ./
-        with:
-          version: 0.12.0
-          command: diff
-          working-directory: .github/fixtures/in-sync
-          sensitive: "true"
-
-      - name: Assert sensitive combined with diff was rejected
-        if: steps.sensitive-with-diff.outcome != 'failure'
-        run: |
-          echo "::error::action.yml accepted sensitive together with command: diff; the sensitive command guard is not working"
-          exit 1
-
       - name: Reject sensitive with a version below the sensitive scan's minimum
         id: sensitive-below-minimum
         continue-on-error: true
@@ -459,7 +427,7 @@ jobs:
       - name: Assert the malformed locales input was rejected
         if: steps.locales-malformed.outcome != 'failure'
         run: |
-          echo "::error::action.yml accepted locales: "de, fr"; the locales format guard is not working"
+          echo "::error::action.yml accepted locales: de, fr; the locales format guard is not working"
           exit 1
 
       - name: Reject a node-version below the CLI's Node.js floor

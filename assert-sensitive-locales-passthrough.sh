@@ -39,12 +39,14 @@ run_guard() {
   local sensitive="$1"
   local capture="$2"
   local locales="$3"
+  local command="${4:-check}"
+  local cli_version="${5:-0.12.0}"
   local status=0
   env PATH="$stub_dir:$PATH" \
     EXEC_CAPTURE="$capture" \
     GITHUB_ACTION_PATH="$repo_root" \
-    VERBATRA_VERSION="0.12.0" \
-    COMMAND="check" \
+    VERBATRA_VERSION="$cli_version" \
+    COMMAND="$command" \
     CONFIG_PATH="" \
     WORKING_DIRECTORY="$fixture_dir" \
     DRY_RUN="false" \
@@ -96,6 +98,30 @@ if ! run_guard "false" "$work_dir/no-locales.txt" ""; then
   failures=1
 elif grep -qx -- "--locales" "$work_dir/no-locales.txt"; then
   echo "FAIL: an empty locales input still passed --locales to the CLI"
+  failures=1
+fi
+
+if run_guard "yes" "$work_dir/not-boolean.txt" ""; then
+  echo "FAIL: the guard accepted sensitive: yes"
+  failures=1
+elif ! grep -q 'the sensitive input must be "true" or "false"' "$work_dir/output.txt"; then
+  echo "FAIL: sensitive: yes was rejected, but not by the boolean guard"
+  failures=1
+fi
+
+if run_guard "true" "$work_dir/with-diff.txt" "" "diff"; then
+  echo "FAIL: the guard accepted sensitive together with command diff"
+  failures=1
+elif ! grep -q 'the sensitive input applies only to the check command' "$work_dir/output.txt"; then
+  echo "FAIL: sensitive with diff was rejected, but not by the sensitive command guard"
+  failures=1
+fi
+
+if run_guard "true" "$work_dir/below.txt" "" "check" "0.11.1"; then
+  echo "FAIL: the guard accepted sensitive with version 0.11.1"
+  failures=1
+elif ! grep -q 'the sensitive input needs version' "$work_dir/output.txt"; then
+  echo "FAIL: sensitive with version 0.11.1 was rejected, but not by the sensitive version guard"
   failures=1
 fi
 
