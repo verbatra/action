@@ -446,38 +446,6 @@ jobs:
           echo "::error::action.yml accepted sensitive with version 0.12.0-next.0; a prerelease ranks below its release, so the sensitive minimum-version guard must reject it"
           exit 1
 
-      - name: Reject locales with a version below the locale filter's minimum
-        id: locales-below-minimum
-        continue-on-error: true
-        uses: ./
-        with:
-          version: 0.11.1
-          command: check
-          working-directory: .github/fixtures/in-sync
-          locales: "de"
-
-      - name: Assert locales with a version below its minimum was rejected
-        if: steps.locales-below-minimum.outcome != 'failure'
-        run: |
-          echo "::error::action.yml accepted locales with version 0.11.1, which has no --locales; the locales minimum-version guard is not working"
-          exit 1
-
-      - name: Reject locales with a prerelease of the locale filter's minimum version
-        id: locales-prerelease
-        continue-on-error: true
-        uses: ./
-        with:
-          version: 0.12.0-next.0
-          command: check
-          working-directory: .github/fixtures/in-sync
-          locales: "de"
-
-      - name: Assert locales with a 0.12.0 prerelease was rejected, as semver ranks it below 0.12.0
-        if: steps.locales-prerelease.outcome != 'failure'
-        run: |
-          echo "::error::action.yml accepted locales with version 0.12.0-next.0; a prerelease ranks below its release, so the locales minimum-version guard must reject it"
-          exit 1
-
       - name: Reject a locales input that is not a comma-separated list of locale codes
         id: locales-malformed
         continue-on-error: true

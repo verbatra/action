@@ -129,7 +129,7 @@ unsupported `command`, a `dry-run`, `qa`, `qa-strict`, or `require-reviewed`
 value other than `"true"` or `"false"`, `dry-run` combined with a read-only
 command, `qa` or `require-reviewed` combined with a command other than `check`,
 `qa-severity` or `qa-strict` without `qa`, `sensitive` combined with a command other than `check`, a malformed
-`locales` list, `qa`, `require-reviewed`, `sensitive`, or `locales` with a
+`locales` list, `qa`, `require-reviewed`, or `sensitive` with a
 `version` below `0.12.0` (a `0.12.0-next.*` prerelease included, on purpose),
 a `node-version` that resolves outside the CLI's Node.js range, a
 floating `version`, a `version` below the minimum the action supports, a

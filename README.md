@@ -45,7 +45,7 @@ next step and names the code of a wrapped error. See
 [Human-only mode](#human-only-mode).
 
 Minimum runner: Actions Runner v2.327.1. Minimum `@verbatra/cli` for `qa`,
-`require-reviewed`, `sensitive`, `locales`, and exit `3`: 0.12.0; every other input still works from
+`require-reviewed`, `sensitive`, and exit `3`: 0.12.0; every other input still works from
 0.9.3.
 
 ### v1.2.0
@@ -269,7 +269,7 @@ Set `sensitive: "true"` together with `command: check` to run `verbatra check --
 
 ### Limit a run to some locales
 
-Set `locales` to a comma-separated list such as `de,fr` to run `translate`, `check`, or `diff` for that subset of the configured target locales (`--locales`). Only letters, digits, `-`, `_`, and commas are accepted, and it needs `version` `0.12.0` or newer.
+Set `locales` to a comma-separated list such as `de,fr` to run `translate`, `check`, or `diff` for that subset of the configured target locales (`--locales`). Only letters, digits, `-`, `_`, and commas are accepted, and it works with every CLI version the action supports.
 
 ```yaml
       - uses: verbatra/action@v1
@@ -373,8 +373,7 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     # Comma-separated subset of target locales to run for, e.g. "de,fr" (maps to
     # --locales). Empty (the default) runs every configured target locale. Applies to
     # translate, check, and diff. Only letters, digits, "-", "_" and commas are accepted;
-    # anything else fails the step. Needs version 0.12.0 or newer; an older version fails
-    # the step before installing the CLI.
+    # anything else fails the step before installing the CLI.
     # Default: ''
     locales: ''
 

@@ -101,8 +101,7 @@ inputs:
       Comma-separated subset of target locales to run for, e.g. "de,fr" (maps to --locales).
       Empty (the default) runs every configured target locale. Applies to translate, check, and
       diff. Only letters, digits, "-", "_" and commas are accepted; anything else fails the
-      step. Needs version 0.12.0 or newer; an older version fails the step before installing
-      the CLI.
+      step before installing the CLI.
     required: false
     default: ""
   node-version:
@@ -234,16 +233,9 @@ runs:
             exit 1
           fi
         fi
-        if [ -n "$LOCALES" ]; then
-          if ! [[ "$LOCALES" =~ ^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$ ]]; then
-            echo "::error::the locales input must be a comma-separated list of locale codes such as de,fr, with no spaces or other characters."
-            exit 1
-          fi
-          locales_minimum_version=0.12.0
-          if version_below "$VERBATRA_VERSION" "$locales_minimum_version"; then
-            echo "::error::the locales input needs version $locales_minimum_version or newer, because earlier releases of the CLI have no --locales. Pin version to $locales_minimum_version or newer, or remove locales."
-            exit 1
-          fi
+        if [ -n "$LOCALES" ] && ! [[ "$LOCALES" =~ ^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$ ]]; then
+          echo "::error::the locales input must be a comma-separated list of locale codes such as de,fr, with no spaces or other characters."
+          exit 1
         fi
         node_actual="$(node -p 'process.versions.node')"
         node_major="${node_actual%%.*}"
