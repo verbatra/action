@@ -117,11 +117,12 @@ elif ! grep -q 'the sensitive input applies only to the check command' "$work_di
   failures=1
 fi
 
-if run_guard "true" "$work_dir/below.txt" "" "check" "0.11.1"; then
-  echo "FAIL: the guard accepted sensitive with version 0.11.1"
+if ! run_guard "false" "$work_dir/old-cli-locales.txt" "de" "check" "0.11.1"; then
+  echo "FAIL: the guard rejected locales with version 0.11.1, whose CLI has --locales"
+  cat "$work_dir/output.txt"
   failures=1
-elif ! grep -q 'the sensitive input needs version' "$work_dir/output.txt"; then
-  echo "FAIL: sensitive with version 0.11.1 was rejected, but not by the sensitive version guard"
+elif ! grep -qx -- "--locales" "$work_dir/old-cli-locales.txt"; then
+  echo "FAIL: locales with version 0.11.1 did not pass --locales to the CLI"
   failures=1
 fi
 
