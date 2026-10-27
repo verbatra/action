@@ -65,6 +65,7 @@ env PATH="$stub_bin_dir:$PATH" \
   QA="false" \
   QA_STRICT="false" \
   REQUIRE_REVIEWED="false" \
+  SENSITIVE="false" \
   SUMMARY_FILE="$work_dir/summary.json" \
   ERROR_FILE="$error_file" \
   LOCALE_FILES_FILE="$work_dir/locale-files.json" \

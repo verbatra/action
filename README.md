@@ -333,6 +333,23 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     # Default: false
     require-reviewed: "false"
 
+    # Also scan the source file and glossary for content that looks sensitive, such as
+    # emails, keys, or card numbers, and fail the step on any finding (maps to
+    # --sensitive). Applies only to the check command; any other command fails the step.
+    # Keyless like check. Needs version 0.12.0 or newer; an older version fails the step
+    # before installing the CLI. Must be "true" or "false"; any other value fails the
+    # step.
+    # Default: false
+    sensitive: "false"
+
+    # Comma-separated subset of target locales to run for, e.g. "de,fr" (maps to
+    # --locales). Empty (the default) runs every configured target locale. Applies to
+    # translate, check, and diff. Only letters, digits, "-", "_" and commas are accepted;
+    # anything else fails the step. Needs version 0.12.0 or newer; an older version fails
+    # the step before installing the CLI.
+    # Default: ''
+    locales: ''
+
     # Node.js version to set up for running the CLI. The CLI needs 22.18.0 or newer on the
     # 22 line, or 24 or newer; a version that resolves to anything else (Node 20, 21, 23,
     # or 22 below 22.18.0) fails the step before installing the CLI.

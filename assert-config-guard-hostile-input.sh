@@ -46,6 +46,7 @@ env VERBATRA_VERSION="0.9.3" \
   QA="false" \
   QA_STRICT="false" \
   REQUIRE_REVIEWED="false" \
+  SENSITIVE="false" \
   SUMMARY_FILE="$summary_file" \
   ERROR_FILE="$error_file" \
   LOCALE_FILES_FILE="$work_dir/locale-files.json" \

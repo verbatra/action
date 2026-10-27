@@ -50,6 +50,7 @@ run_guard() {
     QA="false" \
     QA_STRICT="false" \
     REQUIRE_REVIEWED="$require_reviewed" \
+    SENSITIVE="false" \
     SUMMARY_FILE="$work_dir/summary.json" \
     ERROR_FILE="$work_dir/error.txt" \
     LOCALE_FILES_FILE="$work_dir/locale-files.json" \

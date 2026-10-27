@@ -87,6 +87,24 @@ inputs:
       "false"; any other value fails the step.
     required: false
     default: "false"
+  sensitive:
+    description: >-
+      Also scan the source file and glossary for content that looks sensitive, such as emails,
+      keys, or card numbers, and fail the step on any finding (maps to --sensitive). Applies only
+      to the check command; any other command fails the step. Keyless like check. Needs version
+      0.12.0 or newer; an older version fails the step before installing the CLI. Must be "true"
+      or "false"; any other value fails the step.
+    required: false
+    default: "false"
+  locales:
+    description: >-
+      Comma-separated subset of target locales to run for, e.g. "de,fr" (maps to --locales).
+      Empty (the default) runs every configured target locale. Applies to translate, check, and
+      diff. Only letters, digits, "-", "_" and commas are accepted; anything else fails the
+      step. Needs version 0.12.0 or newer; an older version fails the step before installing
+      the CLI.
+    required: false
+    default: ""
   node-version:
     description: >-
       Node.js version to set up for running the CLI. The CLI needs 22.18.0 or newer on the 22 line,
@@ -124,6 +142,8 @@ runs:
         QA_SEVERITY: ${{ inputs.qa-severity }}
         QA_STRICT: ${{ inputs.qa-strict }}
         REQUIRE_REVIEWED: ${{ inputs.require-reviewed }}
+        SENSITIVE: ${{ inputs.sensitive }}
+        LOCALES: ${{ inputs.locales }}
         SUMMARY_FILE: ${{ runner.temp }}/verbatra-summary.json
         ERROR_FILE: ${{ runner.temp }}/verbatra-error.txt
         LOCALE_FILES_FILE: ${{ runner.temp }}/verbatra-locale-files.json
@@ -164,7 +184,7 @@ runs:
             exit 1
             ;;
         esac
-        for boolean_input in "dry-run:$DRY_RUN" "qa:$QA" "qa-strict:$QA_STRICT" "require-reviewed:$REQUIRE_REVIEWED"; do
+        for boolean_input in "dry-run:$DRY_RUN" "qa:$QA" "qa-strict:$QA_STRICT" "require-reviewed:$REQUIRE_REVIEWED" "sensitive:$SENSITIVE"; do
           case "${boolean_input#*:}" in
             true|false) ;;
             *)
@@ -200,6 +220,28 @@ runs:
           review_minimum_version=0.12.0
           if version_below "$VERBATRA_VERSION" "$review_minimum_version"; then
             echo "::error::the require-reviewed input needs version $review_minimum_version or newer, because earlier releases of the CLI have no check --require-reviewed. Pin version to $review_minimum_version or newer, or remove require-reviewed."
+            exit 1
+          fi
+        fi
+        if [ "$SENSITIVE" = "true" ]; then
+          if [ "$COMMAND" != "check" ]; then
+            echo "::error::the sensitive input applies only to the check command. Set command to check, or remove sensitive."
+            exit 1
+          fi
+          sensitive_minimum_version=0.12.0
+          if version_below "$VERBATRA_VERSION" "$sensitive_minimum_version"; then
+            echo "::error::the sensitive input needs version $sensitive_minimum_version or newer, because earlier releases of the CLI have no check --sensitive. Pin version to $sensitive_minimum_version or newer, or remove sensitive."
+            exit 1
+          fi
+        fi
+        if [ -n "$LOCALES" ]; then
+          if ! [[ "$LOCALES" =~ ^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$ ]]; then
+            echo "::error::the locales input must be a comma-separated list of locale codes such as de,fr, with no spaces or other characters."
+            exit 1
+          fi
+          locales_minimum_version=0.12.0
+          if version_below "$VERBATRA_VERSION" "$locales_minimum_version"; then
+            echo "::error::the locales input needs version $locales_minimum_version or newer, because earlier releases of the CLI have no --locales. Pin version to $locales_minimum_version or newer, or remove locales."
             exit 1
           fi
         fi
@@ -257,6 +299,8 @@ runs:
         if [ -n "$QA_SEVERITY" ]; then args+=(--severity "$QA_SEVERITY"); fi
         if [ "$QA_STRICT" = "true" ]; then args+=(--strict); fi
         if [ "$REQUIRE_REVIEWED" = "true" ]; then args+=(--require-reviewed); fi
+        if [ "$SENSITIVE" = "true" ]; then args+=(--sensitive); fi
+        if [ -n "$LOCALES" ]; then args+=(--locales "$LOCALES"); fi
         npm exec --no --prefix "$scratch_dir" -- verbatra "${args[@]}" >"$SUMMARY_FILE" 2>"$ERROR_FILE"
         echo "exit_code=$?" >>"$GITHUB_OUTPUT"
         node "$GITHUB_ACTION_PATH/locale-files.mjs" "$scratch_dir" "$install_dir" "$resolved_config" "$LOCALE_FILES_FILE" >/dev/null 2>&1
