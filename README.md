@@ -333,7 +333,9 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     # Default: false
     require-reviewed: "false"
 
-    # Node.js version to set up for running the CLI.
+    # Node.js version to set up for running the CLI. The CLI needs 22.18.0 or newer on the
+    # 22 line, or 24 or newer; a version that resolves to anything else (Node 20, 21, 23,
+    # or 22 below 22.18.0) fails the step before installing the CLI.
     # Default: 24
     node-version: "24"
 ```

@@ -382,6 +382,38 @@ jobs:
           echo "::error::action.yml accepted require-reviewed with version 0.12.0-next.0; a prerelease ranks below its release, so the require-reviewed minimum-version guard must reject it"
           exit 1
 
+      - name: Reject a node-version below the CLI's Node.js floor
+        id: node-below-floor
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          node-version: "20"
+
+      - name: Assert the node-version below the CLI's floor was rejected
+        if: steps.node-below-floor.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted node-version 20, which is below the CLI's Node.js floor; the node-version guard is not working"
+          exit 1
+
+      - name: Reject a node-version on the unsupported 23 line
+        id: node-unsupported-line
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 0.12.0
+          command: check
+          working-directory: .github/fixtures/in-sync
+          node-version: "23"
+
+      - name: Assert the node-version on the unsupported 23 line was rejected
+        if: steps.node-unsupported-line.outcome != 'failure'
+        run: |
+          echo "::error::action.yml accepted node-version 23, which is outside the CLI's supported Node.js range; the node-version guard is not working"
+          exit 1
+
       - name: Reject a version input below the minimum the action supports
         id: below-minimum
         continue-on-error: true
@@ -447,6 +479,9 @@ jobs:
 
       - name: Assert require-reviewed passes --require-reviewed to the CLI exactly when it is true
         run: bash ./assert-require-reviewed-passthrough.sh
+
+      - name: Assert the node-version guard accepts only the Node.js range the CLI supports
+        run: bash ./assert-node-version-guard.sh
 
       - name: Assert an absolute config-path is used as-is, not re-resolved against working-directory
         run: bash ./assert-config-guard-absolute-path.sh

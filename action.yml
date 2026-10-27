@@ -88,7 +88,10 @@ inputs:
     required: false
     default: "false"
   node-version:
-    description: Node.js version to set up for running the CLI.
+    description: >-
+      Node.js version to set up for running the CLI. The CLI needs 22.18.0 or newer on the 22 line,
+      or 24 or newer; a version that resolves to anything else (Node 20, 21, 23, or 22 below 22.18.0)
+      fails the step before installing the CLI.
     required: false
     default: "24"
 
@@ -199,6 +202,12 @@ runs:
             echo "::error::the require-reviewed input needs version $review_minimum_version or newer, because earlier releases of the CLI have no check --require-reviewed. Pin version to $review_minimum_version or newer, or remove require-reviewed."
             exit 1
           fi
+        fi
+        node_actual="$(node -p 'process.versions.node')"
+        node_major="${node_actual%%.*}"
+        if ! { [ "$node_major" -ge 24 ] || { [ "$node_major" -eq 22 ] && ! version_below "$node_actual" 22.18.0; }; }; then
+          echo "::error::the node-version input resolved to Node.js $node_actual, but the verbatra CLI needs Node.js 22.18.0 or newer on the 22 line, or 24 or newer. Set node-version to 22.18.0, 24, or newer."
+          exit 1
         fi
         echo "summary_file=$SUMMARY_FILE" >>"$GITHUB_OUTPUT"
         echo "error_file=$ERROR_FILE" >>"$GITHUB_OUTPUT"
