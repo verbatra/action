@@ -5,7 +5,7 @@
 <h1 align="center">verbatra GitHub Action</h1>
 
 <p align="center">
-  Run verbatra i18n translations in CI or gate a pull request on locale drift, annotate failures, and write a job summary, using OpenAI, Anthropic, Gemini, DeepL, Google Cloud Translation, a self-hosted LibreTranslate server, or an openai-compatible local or self-hosted model.
+  Run verbatra i18n translations in CI or gate a pull request on locale drift, annotate failures, and write a job summary, using OpenAI, Anthropic, Gemini, DeepL, Google Cloud Translation, a self-hosted LibreTranslate server, OpenCode, or an openai-compatible local or self-hosted model, or no machine provider at all.
 </p>
 
 <p align="center">
@@ -25,7 +25,7 @@ since `v1.0.0` (currently
 `actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1`, v7.1.0), and that
 action runs on the `node24` runtime.
 
-### Unreleased
+### v1.3.0
 
 No breaking change. Adds the `qa`, `qa-severity`, and `qa-strict` inputs, which
 run `verbatra check --qa` over every committed translation and turn each finding
@@ -33,7 +33,11 @@ into an annotation, the `require-reviewed` input, which runs
 `verbatra check --require-reviewed` and fails the step while a machine-written
 translation is not approved, and the `needs-human` output, which is `"true"` when
 `translate` exits `3` in human-only mode. That exit passes the step instead of
-failing it. `check` now also warns about plurals that lack a CLDR plural category
+failing it. It also adds the `sensitive` input, which runs
+`verbatra check --sensitive`, and the `locales` input, which limits a run to a
+comma-separated subset of target locales with `--locales`. The step now fails
+before installing the CLI when `node-version` resolves to a Node.js outside the
+CLI's range (22.18.0 or newer on the 22 line, or 24 or newer). `check` now also warns about plurals that lack a CLDR plural category
 the target language uses, and a whole-run failure shows the CLI's `hint` as a
 next step and names the code of a wrapped error. See
 [Check translation quality](#check-translation-quality),
@@ -41,7 +45,7 @@ next step and names the code of a wrapped error. See
 [Human-only mode](#human-only-mode).
 
 Minimum runner: Actions Runner v2.327.1. Minimum `@verbatra/cli` for `qa`,
-`require-reviewed`, and exit `3`: 0.12.0; every other input still works from
+`require-reviewed`, `sensitive`, `locales`, and exit `3`: 0.12.0; every other input still works from
 0.9.3.
 
 ### v1.2.0
@@ -157,7 +161,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: verbatra/action@v1
         with:
-          version: 0.9.3
+          version: 0.12.0
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -171,7 +175,7 @@ Set `dry-run: true` to report what would change without calling a provider and w
 ```yaml
       - uses: verbatra/action@v1
         with:
-          version: 0.9.3
+          version: 0.12.0
           dry-run: "true"
 ```
 
@@ -193,7 +197,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: verbatra/action@v1
         with:
-          version: 0.9.3
+          version: 0.12.0
           command: check
 ```
 
@@ -250,6 +254,30 @@ Set `require-reviewed: "true"` together with `command: check` to run `verbatra c
 ```
 
 Each locale with unapproved keys becomes one `REVIEW_REQUIRED` error annotation naming them, and the job summary adds an `unreviewed` column. A `verbatra.provenance.json` that is corrupt or from a newer verbatra fails the gate with one `REVIEW_STATE_UNREADABLE` annotation, since no decision can be read.
+
+### Scan for sensitive content
+
+Set `sensitive: "true"` together with `command: check` to run `verbatra check --sensitive`, which scans the source file and glossary for content that looks sensitive, such as emails, keys, or card numbers, and fails the step on any finding. It is read-only and keyless like `check`, and needs `version` `0.12.0` or newer; the action rejects it with any other command, an older version, or a `0.12.0` prerelease before installing anything.
+
+```yaml
+      - uses: verbatra/action@v1
+        with:
+          version: 0.12.0
+          command: check
+          sensitive: "true"
+```
+
+### Limit a run to some locales
+
+Set `locales` to a comma-separated list such as `de,fr` to run `translate`, `check`, or `diff` for that subset of the configured target locales (`--locales`). Only letters, digits, `-`, `_`, and commas are accepted, and it needs `version` `0.12.0` or newer.
+
+```yaml
+      - uses: verbatra/action@v1
+        with:
+          version: 0.12.0
+          command: check
+          locales: "de,fr"
+```
 
 ## Inputs
 
@@ -396,7 +424,7 @@ In a monorepo, point `working-directory` at the app you are translating:
 
 ```yaml
       with:
-        version: 0.9.3
+        version: 0.12.0
         working-directory: apps/docs
 ```
 
@@ -426,8 +454,10 @@ API keys come only from environment variables, never from action inputs or a lit
 | `gemini` | `GEMINI_API_KEY` |
 | `deepl` | `DEEPL_API_KEY` |
 | `google-translate` | `GOOGLE_TRANSLATE_API_KEY` |
-| `openai-compatible` | `OPENAI_COMPATIBLE_API_KEY`, or the variable named by `provider.options.apiKeyEnvVar`; omit entirely for a server that needs no key |
+| `opencode` | `OPENCODE_API_KEY` |
+| `openai-compatible` | `OPENAI_COMPATIBLE_API_KEY`, or the variable named by `provider.options.apiKeyEnvVar`; omit entirely for a server that needs no key. An `apiKeyEnvVar` naming `OPENCODE_API_KEY` is rejected (`CONFIG_INVALID`): use the `opencode` provider instead |
 | `libretranslate` | `LIBRETRANSLATE_API_KEY`, only when your server requires a key |
+| `none` | none; machine translation is disabled and keys are left for a person, see [Human-only mode](#human-only-mode) |
 
 Set only the keys your configured provider needs, and each value must be a `${{ secrets.* }}` reference, never a literal. Keys are never echoed: the action's own error messages name the variable but never a value.
 
