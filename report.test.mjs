@@ -1873,7 +1873,7 @@ describe("buildReport: check --sensitive", () => {
       "check",
     );
     expect(report.annotations).toEqual([
-      "::error title=verbatra sensitive::[SENSITIVE_CONTENT] 2 glossary terms in the glossary entries hold content that looks sensitive. Run verbatra check --sensitive locally to see which.",
+      "::error title=verbatra sensitive::[SENSITIVE_CONTENT] 2 glossary terms hold content that looks sensitive. Run verbatra check --sensitive locally to see which.",
     ]);
   });
 
@@ -1906,7 +1906,7 @@ describe("buildReport: check --sensitive", () => {
     expect(report.summary).not.toContain("sensitive");
   });
 
-  it("an untrusted detector or field list cannot forge a workflow command", () => {
+  it("an untrusted key cannot forge a workflow command", () => {
     const report = buildReport(
       sensitiveResult({
         findings: [{ key: "k\n::stop-commands::x", fields: ["value"], detectors: ["email"] }],
@@ -1918,5 +1918,29 @@ describe("buildReport: check --sensitive", () => {
     );
     expect(report.annotations[0]).toContain("k%0A::stop-commands::x");
     expect(report.annotations).toHaveLength(1);
+  });
+
+  it("escapes untrusted detector and field names in the annotation and the summary", () => {
+    const report = buildReport(
+      sensitiveResult({
+        findings: [{ key: "k", fields: ["a|b"], detectors: ["x\n::stop-commands::y"] }],
+        glossaryTerms: 0,
+      }),
+      1,
+      "",
+      "check",
+    );
+    expect(report.annotations).toHaveLength(1);
+    expect(report.annotations[0]).toContain("x%0A::stop-commands::y");
+    expect(report.summary).toContain("in a\\|b (x ::stop-commands::y)");
+  });
+
+  it("a glossary-only failure names the count and has no empty key list", () => {
+    const report = buildReport(sensitiveResult({ findings: [], glossaryTerms: 1 }), 1, "", "check");
+    expect(report.annotations).toEqual([
+      "::error title=verbatra sensitive::[SENSITIVE_CONTENT] 1 glossary term holds content that looks sensitive. Run verbatra check --sensitive locally to see which.",
+    ]);
+    expect(report.summary).toContain("found 0 source keys and 1 glossary term.");
+    expect(report.summary).not.toContain("Sensitive source keys:");
   });
 });

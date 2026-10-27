@@ -436,13 +436,14 @@ function sensitiveKeyLabel(finding, escape = String) {
 }
 
 function sensitiveDetail(finding, escape = String) {
-  const fields = (finding.fields ?? []).join(", ");
-  const detectors = (finding.detectors ?? []).join(", ");
+  const fields = (finding.fields ?? []).map(escape).join(", ");
+  const detectors = (finding.detectors ?? []).map(escape).join(", ");
   return `${sensitiveKeyLabel(finding, escape)} holds content that looks sensitive in ${fields} (${detectors})`;
 }
 
-const SENSITIVE_GLOSSARY_MESSAGE =
-  "glossary entries hold content that looks sensitive. Run verbatra check --sensitive locally to see which.";
+function sensitiveGlossaryMessage(terms) {
+  return `${plural(terms, "glossary term")} ${terms === 1 ? "holds" : "hold"} content that looks sensitive. Run verbatra check --sensitive locally to see which.`;
+}
 
 function sensitiveAnnotations(result) {
   const findings = sensitiveFindings(result).map((finding) =>
@@ -456,8 +457,19 @@ function sensitiveAnnotations(result) {
         errorAnnotation(
           "verbatra sensitive",
           SENSITIVE_CODE,
-          `${plural(terms, "glossary term")} in the ${SENSITIVE_GLOSSARY_MESSAGE}`,
+          sensitiveGlossaryMessage(terms),
         ),
+      ];
+}
+
+function sensitiveKeyLines(result) {
+  const findings = sensitiveFindings(result);
+  return findings.length === 0
+    ? []
+    : [
+        "",
+        "Sensitive source keys:",
+        ...findings.map((finding) => `- ${sensitiveDetail(finding, escapeMarkdown)}`),
       ];
 }
 
@@ -469,9 +481,7 @@ function sensitiveMarkdownLines(result) {
   return [
     "",
     `Step failed: [${SENSITIVE_CODE}] the sensitive-content scan found ${plural(sensitiveFindings(result).length, "source key")} and ${plural(terms, "glossary term")}. check --sensitive exits 1 on any finding. The matched text is not shown.`,
-    "",
-    "Sensitive source keys:",
-    ...sensitiveFindings(result).map((finding) => `- ${sensitiveDetail(finding, escapeMarkdown)}`),
+    ...sensitiveKeyLines(result),
   ];
 }
 
