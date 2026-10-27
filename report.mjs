@@ -416,6 +416,69 @@ function reviewMarkdownLines(result) {
   ];
 }
 
+const SENSITIVE_CODE = "SENSITIVE_CONTENT";
+
+function sensitiveFindings(result) {
+  return result.sensitive?.findings ?? [];
+}
+
+function sensitiveGlossaryTerms(result) {
+  return result.sensitive?.glossaryTerms ?? 0;
+}
+
+function sensitiveFound(result) {
+  return sensitiveFindings(result).length + sensitiveGlossaryTerms(result) > 0;
+}
+
+function sensitiveKeyLabel(finding, escape = String) {
+  const fields = finding.fields ?? [];
+  return fields.includes("key") ? "(a key name)" : escape(finding.key);
+}
+
+function sensitiveDetail(finding, escape = String) {
+  const fields = (finding.fields ?? []).join(", ");
+  const detectors = (finding.detectors ?? []).join(", ");
+  return `${sensitiveKeyLabel(finding, escape)} holds content that looks sensitive in ${fields} (${detectors})`;
+}
+
+const SENSITIVE_GLOSSARY_MESSAGE =
+  "glossary entries hold content that looks sensitive. Run verbatra check --sensitive locally to see which.";
+
+function sensitiveAnnotations(result) {
+  const findings = sensitiveFindings(result).map((finding) =>
+    errorAnnotation("verbatra sensitive", SENSITIVE_CODE, sensitiveDetail(finding)),
+  );
+  const terms = sensitiveGlossaryTerms(result);
+  return terms === 0
+    ? findings
+    : [
+        ...findings,
+        errorAnnotation(
+          "verbatra sensitive",
+          SENSITIVE_CODE,
+          `${plural(terms, "glossary term")} in the ${SENSITIVE_GLOSSARY_MESSAGE}`,
+        ),
+      ];
+}
+
+function sensitiveMarkdownLines(result) {
+  if (!sensitiveFound(result)) {
+    return [];
+  }
+  const terms = sensitiveGlossaryTerms(result);
+  return [
+    "",
+    `Step failed: [${SENSITIVE_CODE}] the sensitive-content scan found ${plural(sensitiveFindings(result).length, "source key")} and ${plural(terms, "glossary term")}. check --sensitive exits 1 on any finding. The matched text is not shown.`,
+    "",
+    "Sensitive source keys:",
+    ...sensitiveFindings(result).map((finding) => `- ${sensitiveDetail(finding, escapeMarkdown)}`),
+  ];
+}
+
+function sensitiveAggregate(sensitive) {
+  return `sensitive scan: ${plural(sensitive.findings.length, "source key")}, ${plural(sensitive.glossaryTerms, "glossary term")}`;
+}
+
 function checkColumns(result) {
   const columns = [
     ["locale", (entry) => escapeMarkdown(entry.locale)],
@@ -467,6 +530,9 @@ function checkAggregate(result, drifted) {
   if (result.review !== undefined) {
     parts.push(reviewAggregate(result.review));
   }
+  if (result.sensitive !== undefined) {
+    parts.push(sensitiveAggregate(result.sensitive));
+  }
   return parts.join("; ");
 }
 
@@ -490,6 +556,7 @@ function checkMarkdown(result, exitCode, options = {}) {
   }
   lines.push(
     ...reviewMarkdownLines(result),
+    ...sensitiveMarkdownLines(result),
     ...qaMarkdownLines(result, exitCode, options.qaStrict === true),
     ...incompletePluralLines(result),
   );
@@ -516,6 +583,7 @@ function checkAnnotations(result, exitCode, options) {
   return [
     ...driftAnnotations(result, exitCode, options),
     ...reviewAnnotations(result, options),
+    ...sensitiveAnnotations(result),
     ...qaAnnotations(result, options),
     ...incompletePluralAnnotations(result, options),
   ];

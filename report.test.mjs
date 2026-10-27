@@ -1829,3 +1829,94 @@ describe("buildReport: counts are pluralized in the summary and the annotations"
     );
   });
 });
+
+describe("buildReport: check --sensitive", () => {
+  const sensitiveResult = (sensitive) =>
+    checkResult({ locales: [checkLocale()], sensitive });
+
+  it("annotates each finding as an error without echoing any matched text", () => {
+    const report = buildReport(
+      sensitiveResult({
+        findings: [{ key: "contact.mail", fields: ["value"], detectors: ["email"] }],
+        glossaryTerms: 0,
+      }),
+      1,
+      "",
+      "check",
+    );
+    expect(report.annotations).toEqual([
+      "::error title=verbatra sensitive::[SENSITIVE_CONTENT] contact.mail holds content that looks sensitive in value (email)",
+    ]);
+    expect(report.exitStatus).toBe(1);
+  });
+
+  it("names a finding whose key name is itself sensitive without printing the key", () => {
+    const report = buildReport(
+      sensitiveResult({
+        findings: [{ key: "user.jane@acme-corp.io", fields: ["key", "value"], detectors: ["email"] }],
+        glossaryTerms: 0,
+      }),
+      1,
+      "",
+      "check",
+    );
+    expect(report.annotations[0]).toContain("(a key name) holds content");
+    expect(report.annotations[0]).not.toContain("acme-corp");
+    expect(report.summary).not.toContain("acme-corp");
+  });
+
+  it("adds one annotation for flagged glossary terms", () => {
+    const report = buildReport(
+      sensitiveResult({ findings: [], glossaryTerms: 2 }),
+      1,
+      "",
+      "check",
+    );
+    expect(report.annotations).toEqual([
+      "::error title=verbatra sensitive::[SENSITIVE_CONTENT] 2 glossary terms in the glossary entries hold content that looks sensitive. Run verbatra check --sensitive locally to see which.",
+    ]);
+  });
+
+  it("explains the failure in the summary and counts the findings in the aggregate", () => {
+    const report = buildReport(
+      sensitiveResult({
+        findings: [{ key: "a|b", fields: ["value"], detectors: ["secret", "pattern"] }],
+        glossaryTerms: 1,
+      }),
+      1,
+      "",
+      "check",
+    );
+    expect(report.summary).toContain("sensitive scan: 1 source key, 1 glossary term");
+    expect(report.summary).toContain(
+      "Step failed: [SENSITIVE_CONTENT] the sensitive-content scan found 1 source key and 1 glossary term.",
+    );
+    expect(report.summary).toContain("- a\\|b holds content that looks sensitive in value (secret, pattern)");
+  });
+
+  it("a clean scan adds the aggregate and no annotation", () => {
+    const report = buildReport(sensitiveResult({ findings: [], glossaryTerms: 0 }), 0, "", "check");
+    expect(report.annotations).toEqual([]);
+    expect(report.summary).toContain("sensitive scan: 0 source keys, 0 glossary terms");
+    expect(report.summary).not.toContain("Step failed");
+  });
+
+  it("a check without the scan renders no sensitive section", () => {
+    const report = buildReport(checkResult({ locales: [checkLocale()] }), 0, "", "check");
+    expect(report.summary).not.toContain("sensitive");
+  });
+
+  it("an untrusted detector or field list cannot forge a workflow command", () => {
+    const report = buildReport(
+      sensitiveResult({
+        findings: [{ key: "k\n::stop-commands::x", fields: ["value"], detectors: ["email"] }],
+        glossaryTerms: 0,
+      }),
+      1,
+      "",
+      "check",
+    );
+    expect(report.annotations[0]).toContain("k%0A::stop-commands::x");
+    expect(report.annotations).toHaveLength(1);
+  });
+});
