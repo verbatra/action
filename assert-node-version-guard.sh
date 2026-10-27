@@ -42,11 +42,12 @@ fixture_dir="$(cd "$repo_root/.github/fixtures/config-guard-present" && pwd)"
 
 run_guard() {
   local node_version="$1"
+  local cli_version="$2"
   local status=0
   env PATH="$stub_dir:$PATH" \
     STUB_NODE_VERSION="$node_version" \
     GITHUB_ACTION_PATH="$repo_root" \
-    VERBATRA_VERSION="0.12.0" \
+    VERBATRA_VERSION="$cli_version" \
     COMMAND="check" \
     CONFIG_PATH="" \
     WORKING_DIRECTORY="$fixture_dir" \
@@ -55,7 +56,7 @@ run_guard() {
     QA_STRICT="false" \
     REQUIRE_REVIEWED="false" \
     SENSITIVE="false" \
-    SENSITIVE="false" \
+    LOCALES="" \
     SUMMARY_FILE="$work_dir/summary.json" \
     ERROR_FILE="$work_dir/error.txt" \
     LOCALE_FILES_FILE="$work_dir/locale-files.json" \
@@ -66,27 +67,44 @@ run_guard() {
 
 failures=0
 
-for accepted in 22.18.0 22.21.1 24.0.0 24.21.0 25.1.0; do
-  if ! run_guard "$accepted"; then
-    echo "FAIL: the guard rejected Node.js $accepted, which the CLI supports"
+expect_guard() {
+  local verdict="$1" cli_version="$2" node_version="$3"
+  if run_guard "$node_version" "$cli_version"; then
+    if [ "$verdict" = "reject" ]; then
+      echo "FAIL: CLI $cli_version with Node.js $node_version was accepted, but is outside the supported range"
+      failures=1
+    fi
+  elif [ "$verdict" = "accept" ]; then
+    echo "FAIL: CLI $cli_version with Node.js $node_version was rejected, but is supported"
     cat "$work_dir/output.txt"
-    failures=1
-  fi
-done
-
-for rejected in 20.19.0 21.7.3 22.17.9 23.11.0; do
-  if run_guard "$rejected"; then
-    echo "FAIL: the guard accepted Node.js $rejected, which is outside the CLI's supported range"
     failures=1
   elif ! grep -q 'the node-version input resolved to' "$work_dir/output.txt"; then
-    echo "FAIL: Node.js $rejected was rejected, but not by the node-version guard"
+    echo "FAIL: CLI $cli_version with Node.js $node_version was rejected, but not by the node-version guard"
     cat "$work_dir/output.txt"
     failures=1
   fi
+}
+
+for cli_version in 0.12.0 0.12.0-next.0 0.12.3 1.0.0; do
+  for node_version in 22.18.0 22.21.1 24.0.0 24.21.0 25.1.0; do
+    expect_guard accept "$cli_version" "$node_version"
+  done
+  for node_version in 20.19.0 21.7.3 22.14.0 22.17.9 23.11.0; do
+    expect_guard reject "$cli_version" "$node_version"
+  done
+done
+
+for cli_version in 0.9.3 0.11.1; do
+  for node_version in 22.14.0 22.17.9 22.18.0 23.11.0 24.0.0; do
+    expect_guard accept "$cli_version" "$node_version"
+  done
+  for node_version in 20.19.0 21.7.3 22.13.9; do
+    expect_guard reject "$cli_version" "$node_version"
+  done
 done
 
 if [ "$failures" -ne 0 ]; then
   exit 1
 fi
 
-echo "OK: the node-version guard accepts 22.18.0 and newer on the 22 line and 24 or newer, and rejects everything else"
+echo "OK: the node-version guard follows the CLI engines range of the pinned version"

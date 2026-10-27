@@ -37,7 +37,8 @@ failing it. It also adds the `sensitive` input, which runs
 `verbatra check --sensitive`, and the `locales` input, which limits a run to a
 comma-separated subset of target locales with `--locales`. The step now fails
 before installing the CLI when `node-version` resolves to a Node.js outside the
-CLI's range (22.18.0 or newer on the 22 line, or 24 or newer). `check` now also warns about plurals that lack a CLDR plural category
+pinned CLI's range (22.18.0 or newer on the 22 line, or 24 or newer for
+0.12.0 and newer; 22.14.0 or newer before). `check` now also warns about plurals that lack a CLDR plural category
 the target language uses, and a whole-run failure shows the CLI's `hint` as a
 next step and names the code of a wrapped error. See
 [Check translation quality](#check-translation-quality),
@@ -377,9 +378,10 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     # Default: ''
     locales: ''
 
-    # Node.js version to set up for running the CLI. The CLI needs 22.18.0 or newer on the
-    # 22 line, or 24 or newer; a version that resolves to anything else (Node 20, 21, 23,
-    # or 22 below 22.18.0) fails the step before installing the CLI.
+    # Node.js version to set up for running the CLI. @verbatra/cli 0.12.0 and newer (a
+    # 0.12.0 prerelease included) need 22.18.0 or newer on the 22 line, or 24 or newer;
+    # older releases need 22.14.0 or newer. A version that resolves to anything else fails
+    # the step before installing the CLI.
     # Default: 24
     node-version: "24"
 ```

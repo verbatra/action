@@ -106,9 +106,10 @@ inputs:
     default: ""
   node-version:
     description: >-
-      Node.js version to set up for running the CLI. The CLI needs 22.18.0 or newer on the 22 line,
-      or 24 or newer; a version that resolves to anything else (Node 20, 21, 23, or 22 below 22.18.0)
-      fails the step before installing the CLI.
+      Node.js version to set up for running the CLI. @verbatra/cli 0.12.0 and newer (a 0.12.0
+      prerelease included) need 22.18.0 or newer on the 22 line, or 24 or newer; older releases
+      need 22.14.0 or newer. A version that resolves to anything else fails the step before
+      installing the CLI.
     required: false
     default: "24"
 
@@ -239,8 +240,17 @@ runs:
         fi
         node_actual="$(node -p 'process.versions.node')"
         node_major="${node_actual%%.*}"
-        if ! { [ "$node_major" -ge 24 ] || { [ "$node_major" -eq 22 ] && ! version_below "$node_actual" 22.18.0; }; }; then
-          echo "::error::the node-version input resolved to Node.js $node_actual, but the verbatra CLI needs Node.js 22.18.0 or newer on the 22 line, or 24 or newer. Set node-version to 22.18.0, 24, or newer."
+        if version_below "${VERBATRA_VERSION%%-*}" 0.12.0; then
+          node_floor_text="22.14.0 or newer"
+          node_supported=false
+          if [ "$node_major" -ge 23 ] || { [ "$node_major" -eq 22 ] && ! version_below "$node_actual" 22.14.0; }; then node_supported=true; fi
+        else
+          node_floor_text="22.18.0 or newer on the 22 line, or 24 or newer"
+          node_supported=false
+          if [ "$node_major" -ge 24 ] || { [ "$node_major" -eq 22 ] && ! version_below "$node_actual" 22.18.0; }; then node_supported=true; fi
+        fi
+        if [ "$node_supported" != "true" ]; then
+          echo "::error::the node-version input resolved to Node.js $node_actual, but this version of the verbatra CLI needs Node.js $node_floor_text. Set node-version accordingly."
           exit 1
         fi
         echo "summary_file=$SUMMARY_FILE" >>"$GITHUB_OUTPUT"
