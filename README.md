@@ -20,9 +20,10 @@
 
 `v1` is the only maintained line: every fix and feature lands there, and the `v1`
 tag moves to the newest release. Entries are newest first. Every v1 release has
-the same runner floor, because the action has pinned
-`actions/setup-node@820762786026740c76f36085b0efc47a31fe5020` (v7.0.0) since
-`v1.0.0` and that action runs on the `node24` runtime.
+the same runner floor, because the action has pinned `actions/setup-node` v7
+since `v1.0.0` (currently
+`actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1`, v7.1.0), and that
+action runs on the `node24` runtime.
 
 ### Unreleased
 
@@ -437,7 +438,7 @@ Two things need pinning for reproducible, supply-chain-safe CI: the `uses:` refe
 
 ## Requirements
 
-- A GitHub-hosted or self-hosted runner with `bash` available, on Actions Runner v2.327.1 or newer. The action sets up Node.js itself via `actions/setup-node` v7.0.0, which runs on the `node24` runtime and needs that runner floor, so no Node.js step of your own is required.
+- A GitHub-hosted or self-hosted runner with `bash` available, on Actions Runner v2.327.1 or newer. The action sets up Node.js itself via `actions/setup-node` v7.1.0, which runs on the `node24` runtime and needs that runner floor, so no Node.js step of your own is required.
 - Network access to the npm registry, to install `@verbatra/cli` at run time.
 - A verbatra config directly inside the resolved `working-directory` (the repository root by default), plus locale files there. See [Config discovery](#config-discovery).
 
