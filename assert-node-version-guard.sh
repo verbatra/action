@@ -86,7 +86,7 @@ expect_guard() {
 }
 
 for cli_version in 0.12.0 0.12.0-next.0 0.12.3; do
-  for node_version in 22.18.0 22.21.1 24.0.0 24.21.0 25.1.0; do
+  for node_version in 22.18.0 22.21.1 24.0.0 24.21.0 25.1.0 26.0.0 27.0.0; do
     expect_guard accept "$cli_version" "$node_version"
   done
   for node_version in 20.19.0 21.7.3 22.14.0 22.17.9 23.11.0; do
@@ -95,7 +95,7 @@ for cli_version in 0.12.0 0.12.0-next.0 0.12.3; do
 done
 
 for cli_version in 0.13.0 0.13.0-next.0 0.13.2 1.0.0; do
-  for node_version in 22.22.0 22.23.4 24.0.0 24.22.2 26.0.0 26.13.0; do
+  for node_version in 22.22.0 22.23.4 24.0.0 24.22.2 26.0.0 26.13.0 28.0.0; do
     expect_guard accept "$cli_version" "$node_version"
   done
   for node_version in 20.19.0 21.7.3 22.14.0 22.18.0 22.21.1 23.11.0 25.1.0 27.0.0; do

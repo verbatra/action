@@ -27,13 +27,15 @@ action runs on the `node24` runtime.
 
 ### v1.4.0
 
-Raises the Node.js floor for CLI 0.13.0 and newer, the release where the CLI's
-`engines` range becomes `^22.22.0 || >=24`. With `version` 0.13.0 or newer the
-step now fails before installing the CLI when `node-version` resolves to Node.js
-22 below 22.22.0 or to an odd-numbered line such as 25; before, the range for
-0.12.0 and newer was 22.18.0 or newer on the 22 line, or 24 or newer, and it
-stays that way for `version` 0.12.x. The fix is to upgrade the runner's
-Node.js: set `node-version` to `22.22.0` or newer on the 22 line, `24`, or `26`.
+Tightens the Node.js range to LTS lines for CLI 0.13.0 and newer, the release
+where the CLI's `engines` range becomes `^22.22.0 || >=24`. From `version`
+0.13.0 the action accepts only LTS lines (22.22.0 or newer on the 22 line, or an
+even-numbered line from 24 up), which is stricter than the CLI's own `engines`
+range: the step fails before installing the CLI when `node-version` resolves to
+Node.js 22 below 22.22.0 or to an odd-numbered line such as 25. For `version`
+0.12.x the range is unchanged: 22.18.0 or newer on the 22 line, or 24 or newer.
+The fix is to upgrade the runner's Node.js: set `node-version` to `22.22.0` or
+newer on the 22 line, `24`, or `26`.
 
 ### v1.3.0
 
@@ -388,11 +390,12 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     # Default: ''
     locales: ''
 
-    # Node.js version to set up for running the CLI. @verbatra/cli 0.13.0 and newer (a
-    # 0.13.0 prerelease included) need 22.22.0 or newer on the 22 line, or an
-    # even-numbered line from 24 up (24, 26). 0.12.0 up to 0.13.0 need 22.18.0 or newer on
-    # the 22 line, or 24 or newer. Older releases need 22.14.0 or newer. A version that
-    # resolves to anything else fails the step before installing the CLI.
+    # Node.js version to set up for running the CLI. From @verbatra/cli 0.13.0 (a 0.13.0
+    # prerelease included) the action accepts only LTS lines: 22.22.0 or newer on the 22
+    # line, or an even-numbered line from 24 up (for example 24 or 26). That is stricter
+    # than the CLI's own engines range. 0.12.x needs 22.18.0 or newer on the 22 line, or
+    # 24 or newer. Older releases need 22.14.0 or newer. A version that resolves to
+    # anything else fails the step before installing the CLI.
     # Default: 24
     node-version: "24"
 ```
