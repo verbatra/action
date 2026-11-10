@@ -106,10 +106,11 @@ inputs:
     default: ""
   node-version:
     description: >-
-      Node.js version to set up for running the CLI. @verbatra/cli 0.12.0 and newer (a 0.12.0
-      prerelease included) need 22.22.0 or newer on the 22 line, or an even-numbered line from 24 up (24, 26); older releases
-      need 22.14.0 or newer. A version that resolves to anything else fails the step before
-      installing the CLI.
+      Node.js version to set up for running the CLI. @verbatra/cli 0.13.0 and newer (a 0.13.0
+      prerelease included) need 22.22.0 or newer on the 22 line, or an even-numbered line from
+      24 up (24, 26). 0.12.0 up to 0.13.0 need 22.18.0 or newer on the 22 line, or 24 or newer.
+      Older releases need 22.14.0 or newer. A version that resolves to anything else fails the
+      step before installing the CLI.
     required: false
     default: "24"
 
@@ -244,6 +245,10 @@ runs:
           node_floor_text="22.14.0 or newer"
           node_supported=false
           if [ "$node_major" -ge 23 ] || { [ "$node_major" -eq 22 ] && ! version_below "$node_actual" 22.14.0; }; then node_supported=true; fi
+        elif version_below "${VERBATRA_VERSION%%-*}" 0.13.0; then
+          node_floor_text="22.18.0 or newer on the 22 line, or 24 or newer"
+          node_supported=false
+          if [ "$node_major" -ge 24 ] || { [ "$node_major" -eq 22 ] && ! version_below "$node_actual" 22.18.0; }; then node_supported=true; fi
         else
           node_floor_text="22.22.0 or newer on the 22 line, or an even-numbered release line from 24 up (24, 26)"
           node_supported=false

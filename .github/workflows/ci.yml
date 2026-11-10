@@ -583,38 +583,6 @@ jobs:
           echo "::error::action.yml accepted node-version 23, which is outside the CLI's supported Node.js range; the node-version guard is not working"
           exit 1
 
-      - name: Reject a node-version on the 22 line below 22.22.0
-        id: node-22-below-floor
-        continue-on-error: true
-        uses: ./
-        with:
-          version: 0.12.0
-          command: check
-          working-directory: .github/fixtures/in-sync
-          node-version: "22.18.0"
-
-      - name: Assert the node-version on the 22 line below 22.22.0 was rejected
-        if: steps.node-22-below-floor.outcome != 'failure'
-        run: |
-          echo "::error::action.yml accepted node-version 22.18.0, which is below the CLI's Node.js floor; the node-version guard is not working"
-          exit 1
-
-      - name: Reject a node-version on the unsupported 25 line
-        id: node-25-line
-        continue-on-error: true
-        uses: ./
-        with:
-          version: 0.12.0
-          command: check
-          working-directory: .github/fixtures/in-sync
-          node-version: "25"
-
-      - name: Assert the node-version on the unsupported 25 line was rejected
-        if: steps.node-25-line.outcome != 'failure'
-        run: |
-          echo "::error::action.yml accepted node-version 25, which is outside the CLI's supported Node.js range; the node-version guard is not working"
-          exit 1
-
       - name: Reject a version input below the minimum the action supports
         id: below-minimum
         continue-on-error: true

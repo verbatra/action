@@ -25,6 +25,16 @@ since `v1.0.0` (currently
 `actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1`, v7.1.0), and that
 action runs on the `node24` runtime.
 
+### v1.4.0
+
+Raises the Node.js floor for CLI 0.13.0 and newer, the release where the CLI's
+`engines` range becomes `^22.22.0 || >=24`. With `version` 0.13.0 or newer the
+step now fails before installing the CLI when `node-version` resolves to Node.js
+22 below 22.22.0 or to an odd-numbered line such as 25; before, the range for
+0.12.0 and newer was 22.18.0 or newer on the 22 line, or 24 or newer, and it
+stays that way for `version` 0.12.x. The fix is to upgrade the runner's
+Node.js: set `node-version` to `22.22.0` or newer on the 22 line, `24`, or `26`.
+
 ### v1.3.0
 
 No breaking change. Adds the `qa`, `qa-severity`, and `qa-strict` inputs, which
@@ -37,11 +47,8 @@ failing it. It also adds the `sensitive` input, which runs
 `verbatra check --sensitive`, and the `locales` input, which limits a run to a
 comma-separated subset of target locales with `--locales`. The step now fails
 before installing the CLI when `node-version` resolves to a Node.js outside the
-pinned CLI's range (22.22.0 or newer on the 22 line, or an even-numbered line from 24 up for
-0.12.0 and newer; 22.14.0 or newer before). Before, 0.12.0 and newer accepted 22.18.0
-or newer on the 22 line and any Node.js 24 or newer, including the odd 25 line; now
-Node.js 22 below 22.22.0 and Node.js 25 fail the step. Upgrade the runner's Node.js
-(set `node-version` to `22.22.0`, `24` or `26`). `check` now also warns about plurals that lack a CLDR plural category
+pinned CLI's range (22.18.0 or newer on the 22 line, or 24 or newer for
+0.12.0 and newer; 22.14.0 or newer before). `check` now also warns about plurals that lack a CLDR plural category
 the target language uses, and a whole-run failure shows the CLI's `hint` as a
 next step and names the code of a wrapped error. See
 [Check translation quality](#check-translation-quality),
@@ -381,10 +388,11 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     # Default: ''
     locales: ''
 
-    # Node.js version to set up for running the CLI. @verbatra/cli 0.12.0 and newer (a
-    # 0.12.0 prerelease included) need 22.22.0 or newer on the 22 line, or an
-    # even-numbered line from 24 up (24, 26); older releases need 22.14.0 or newer. A
-    # version that resolves to anything else fails the step before installing the CLI.
+    # Node.js version to set up for running the CLI. @verbatra/cli 0.13.0 and newer (a
+    # 0.13.0 prerelease included) need 22.22.0 or newer on the 22 line, or an
+    # even-numbered line from 24 up (24, 26). 0.12.0 up to 0.13.0 need 22.18.0 or newer on
+    # the 22 line, or 24 or newer. Older releases need 22.14.0 or newer. A version that
+    # resolves to anything else fails the step before installing the CLI.
     # Default: 24
     node-version: "24"
 ```
