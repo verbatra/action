@@ -41,7 +41,7 @@ the target language uses, and a whole-run failure shows the CLI's `hint` as a
 next step and names the code of a wrapped error. See
 [Check translation quality](README.md#check-translation-quality),
 [Require reviewed translations](README.md#require-reviewed-translations), and
-[Human-only mode](README.md#human-only-mode).
+[Human-only mode](README.md#hand-keys-to-a-person-human-only-mode).
 
 Minimum runner: Actions Runner v2.327.1. Minimum `@verbatra/cli` for `qa`,
 `require-reviewed`, `sensitive`, and exit `3`: 0.12.0; every other input still works from
