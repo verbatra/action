@@ -152,10 +152,29 @@ retired in favor of this single-line model; see
 
 ### Release checklist
 
-The positive self-tests for `qa`, `require-reviewed`, `sensitive`, `locales`, and
-the `needs-human` output run in the `self-test` job against `@verbatra/cli`
-`0.12.0`. Before tagging a release, confirm that job is green, then move the `v1`
-tag.
+Changes that are merged but not yet tagged are collected under `## [Unreleased]`
+in [CHANGELOG.md](CHANGELOG.md); add a bullet there for every user-visible change.
+To release:
+
+1. Confirm CI is green on `main`. The positive self-tests for `qa`,
+   `require-reviewed`, `sensitive`, `locales`, and the `needs-human` output run in
+   the `self-test` job against `@verbatra/cli` `0.12.0`.
+2. Bump `version` in `package.json` and `package-lock.json` to the new `X.Y.Z`.
+3. Regenerate the README input reference with `npm run docs:usage` if `action.yml`
+   changed, and confirm `npm run docs:usage:check` passes.
+4. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and add
+   a fresh empty `## [Unreleased]` above it.
+5. Update the README: the "What's new" paragraph, and the full-SHA example under
+   "Versioning" to the new release commit with a `# vX.Y.Z` comment. The tests in
+   `release-docs.test.mjs` fail when `package.json`, the latest `CHANGELOG.md`
+   entry, and that example disagree.
+6. Run `npm ci && npm test` and open a pull request with these changes; merge it
+   once CI is green.
+7. Tag the merge commit `vX.Y.Z` and push the tag.
+8. Create the GitHub release for `vX.Y.Z`, with notes taken from the `CHANGELOG.md`
+   entry.
+9. Move the `v1` tag to the same commit so consumers of `uses: verbatra/action@v1`
+   receive it.
 
 ## Commit convention
 
