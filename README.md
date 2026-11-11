@@ -370,7 +370,7 @@ Set only the keys your configured provider needs, each as a `${{ secrets.* }}` r
 `v1` is the only maintained line: every fix and feature lands there. Pin `v1` for convenience (it moves to the latest `v1.x.y` release), a specific `v1.x.y` tag to pin a release (a tag can in principle be moved), or a full commit SHA, the only immutable reference:
 
 ```yaml
-      - uses: verbatra/action@84f75d2058654ada874a862df4ed0b41e9dd15a9 # v1.3.0
+      - uses: verbatra/action@dc853313e805e3acfd8f7e78eab474794d4388a0 # v1.4.0
 ```
 
 Keep the human-readable version in a trailing comment so the pin stays reviewable, and let Dependabot propose the SHA bumps.
