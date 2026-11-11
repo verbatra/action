@@ -18,7 +18,7 @@
 
 ## What's new
 
-v1.3.0 adds the `qa`, `qa-severity`, `qa-strict`, `require-reviewed`, `sensitive`, and `locales` inputs, the `needs-human` output, and a Node.js check before the CLI installs. See [CHANGELOG.md](./CHANGELOG.md) for every release, and [Releases](https://github.com/verbatra/action/releases) for the published notes.
+v1.4.0 tightens the Node.js range to LTS lines for CLI 0.13.0 and newer: from `version` 0.13.0 the action accepts only Node.js 22.22.0 or newer on the 22 line, or an even-numbered line from 24 up. It builds on v1.3.0, which added the `qa`, `qa-severity`, `qa-strict`, `require-reviewed`, `sensitive`, and `locales` inputs, the `needs-human` output, and a Node.js check before the CLI installs. See [CHANGELOG.md](./CHANGELOG.md) for every release, and [Releases](https://github.com/verbatra/action/releases) for the published notes.
 
 ## Quick start
 

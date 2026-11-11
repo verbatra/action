@@ -13,6 +13,8 @@ action runs on the `node24` runtime.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-11
+
 Tightens the Node.js range to LTS lines for CLI 0.13.0 and newer, the release
 where the CLI's `engines` range becomes `^22.22.0 || >=24`. From `version`
 0.13.0 the action accepts only LTS lines (22.22.0 or newer on the 22 line, or an
@@ -135,7 +137,8 @@ with annotations, a job summary, and the CLI's exit code propagated. Inputs:
 
 Minimum runner: Actions Runner v2.327.1.
 
-[Unreleased]: https://github.com/verbatra/action/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/verbatra/action/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/verbatra/action/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/verbatra/action/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/verbatra/action/compare/v1.1.4...v1.2.0
 [1.1.4]: https://github.com/verbatra/action/compare/v1.1.3...v1.1.4
