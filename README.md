@@ -25,6 +25,18 @@ since `v1.0.0` (currently
 `actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1`, v7.1.0), and that
 action runs on the `node24` runtime.
 
+### v1.4.0
+
+Tightens the Node.js range to LTS lines for CLI 0.13.0 and newer, the release
+where the CLI's `engines` range becomes `^22.22.0 || >=24`. From `version`
+0.13.0 the action accepts only LTS lines (22.22.0 or newer on the 22 line, or an
+even-numbered line from 24 up), which is stricter than the CLI's own `engines`
+range: the step fails before installing the CLI when `node-version` resolves to
+Node.js 22 below 22.22.0 or to an odd-numbered line such as 25. For `version`
+0.12.x the range is unchanged: 22.18.0 or newer on the 22 line, or 24 or newer.
+The fix is to upgrade the runner's Node.js: set `node-version` to `22.22.0` or
+newer on the 22 line, `24`, or `26`.
+
 ### v1.3.0
 
 No breaking change. Adds the `qa`, `qa-severity`, and `qa-strict` inputs, which
@@ -378,10 +390,12 @@ Every input and its default, generated from [`action.yml`](./action.yml).
     # Default: ''
     locales: ''
 
-    # Node.js version to set up for running the CLI. @verbatra/cli 0.12.0 and newer (a
-    # 0.12.0 prerelease included) need 22.18.0 or newer on the 22 line, or 24 or newer;
-    # older releases need 22.14.0 or newer. A version that resolves to anything else fails
-    # the step before installing the CLI.
+    # Node.js version to set up for running the CLI. From @verbatra/cli 0.13.0 (a 0.13.0
+    # prerelease included) the action accepts only LTS lines: 22.22.0 or newer on the 22
+    # line, or an even-numbered line from 24 up (for example 24 or 26). That is stricter
+    # than the CLI's own engines range. 0.12.x needs 22.18.0 or newer on the 22 line, or
+    # 24 or newer. Older releases need 22.14.0 or newer. A version that resolves to
+    # anything else fails the step before installing the CLI.
     # Default: 24
     node-version: "24"
 ```
@@ -514,7 +528,7 @@ The hosted documentation site at [verbatra.kreitz-webdev.de](https://verbatra.kr
 
 ## Contributing
 
-Contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md) first; they follow the main project's guidelines, with the differences this repository actually has (npm rather than pnpm, no changesets, no commit hook). Commits here follow Conventional Commits. Run `npm ci && npm test` before opening a pull request; the same suite runs in CI on Node 22.18.0 and 24, alongside a job that runs the action against itself.
+Contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md) first; they follow the main project's guidelines, with the differences this repository actually has (npm rather than pnpm, no changesets, no commit hook). Commits here follow Conventional Commits. Run `npm ci && npm test` before opening a pull request; the same suite runs in CI on Node 22.22.0, 24 and 26, alongside a job that runs the action against itself.
 
 ## License
 
