@@ -301,101 +301,65 @@ Every input and its default, generated from [`action.yml`](./action.yml).
 ```yaml
 - uses: verbatra/action@v1
   with:
-    # The @verbatra/cli version to run, e.g. 1.2.3. PIN this to an exact version for
-    # reproducible, supply-chain-safe CI; do NOT use a floating tag such as "latest" (it
-    # pulls whatever is newest at run time, which is non-reproducible and would auto-pull
-    # a compromised release). The action rejects anything that is not an exact semver
-    # (dist-tags, ranges, and ^/~ prefixes all fail the step). Must be 0.9.3 or newer:
-    # older releases resolve a verbatra.config.ts import of defineConfig from
-    # @verbatra/cli or @verbatra/sdk against the config file's own location rather than
-    # against the running CLI, and the action no longer works around that. Required.
+    # Exact @verbatra/cli version to install, for example 0.12.0. Must be 0.9.3 or newer;
+    # tags, ranges and prefixes are rejected.
     version: ''
 
-    # Which verbatra command to run. One of "translate" (default, writes translations),
-    # "check" (read-only, exits 1 when any locale has missing or stale keys), or "diff"
-    # (read-only, exits 1 when any locale has pending changes). The read-only commands
-    # need no provider API key, so they work as a CI gate on a fork pull request. Anything
-    # outside that set fails the step.
+    # The verbatra command to run: "translate" (default), "check" or "diff". The last two
+    # are read-only and need no API key.
     # Default: translate
     command: translate
 
-    # Explicit config file to load (maps to --config). A relative path resolves against
-    # working-directory, not against the repository root. Empty (the default) requires a
-    # recognized verbatra config file directly inside working-directory; the step fails
-    # before installing the CLI when none is found there. The lookup is strict and not
-    # inherited: it never walks up into a parent directory or the repository root, even
-    # when one of them holds a valid config.
+    # Config file to load (--config). A relative path resolves against working-directory.
+    # When empty, a config must exist directly inside working-directory; parent
+    # directories are never searched.
     # Default: ''
     config-path: ''
 
-    # Directory to resolve config and locale files against (maps to --cwd). Config lookup
-    # (when config-path is empty) is strict: it looks only directly inside this directory,
-    # never a parent or ancestor, even when working-directory is unset and resolves to the
-    # repository root. For example, in a monorepo where the app to translate lives at
-    # apps/docs, set working-directory to apps/docs and put the config there; a config at
-    # the repository root does not satisfy the check.
+    # Directory holding the verbatra config and locale files (--cwd). Defaults to the
+    # repository root; in a monorepo, set it to the app directory.
     # Default: ''
     working-directory: ''
 
-    # Report what would change without calling a provider or writing (maps to --dry-run).
-    # Applies only to the translate command; combining it with check or diff fails the
-    # step, because those commands are already read-only and the CLI rejects the flag.
-    # Must be "true" or "false"; any other value fails the step.
+    # Preview a translate run without calling a provider or writing files (--dry-run).
+    # Only valid with command translate. "true" or "false".
     # Default: false
     dry-run: "false"
 
-    # Also run the quality check over every committed translation (maps to --qa). Applies
-    # only to the check command; any other command fails the step. Each finding becomes an
-    # annotation: an error for a value the integrity gate would refuse (a broken
-    # placeholder, markup, or ICU message), a warning for a review reason. The step fails
-    # on any error finding. Needs version 0.12.0 or newer; an older version fails the step
-    # before installing the CLI. Must be "true" or "false"; any other value fails the
-    # step.
+    # Run the quality check over every committed translation and annotate each finding
+    # (--qa). Only valid with command check; needs CLI 0.12.0 or newer. "true" or "false".
     # Default: false
     qa: "false"
 
-    # Lowest quality-check severity to report, "error" or "warning" (maps to --severity).
-    # Empty (the default) reports both. Requires qa; the CLI rejects any other value, and
-    # rejects "error" together with qa-strict.
+    # Lowest quality-check severity to report, "error" or "warning" (--severity). Empty
+    # reports both. Requires qa; "error" cannot be combined with qa-strict.
     # Default: ''
     qa-severity: ''
 
-    # Also fail the step when the quality check reports only warnings (maps to --strict).
-    # Requires qa. Must be "true" or "false"; any other value fails the step.
+    # Also fail when the quality check reports only warnings (--strict). Requires qa.
+    # "true" or "false".
     # Default: false
     qa-strict: "false"
 
-    # Also fail the step while any machine-written translation is not approved in the
-    # committed verbatra.provenance.json (maps to --require-reviewed). Applies only to the
-    # check command; any other command fails the step. Each locale with unapproved keys
-    # becomes an error annotation naming them. Keyless like check. Needs version 0.12.0 or
-    # newer; an older version fails the step before installing the CLI. Must be "true" or
-    # "false"; any other value fails the step.
+    # Fail while any machine-written translation is not approved in
+    # verbatra.provenance.json (--require-reviewed). Only valid with command check; needs
+    # CLI 0.12.0 or newer. "true" or "false".
     # Default: false
     require-reviewed: "false"
 
-    # Also scan the source file and glossary for content that looks sensitive, such as
-    # emails, keys, or card numbers, and fail the step on any finding (maps to
-    # --sensitive). Applies only to the check command; any other command fails the step.
-    # Keyless like check. Needs version 0.12.0 or newer; an older version fails the step
-    # before installing the CLI. Must be "true" or "false"; any other value fails the
-    # step.
+    # Scan the source file and glossary for sensitive content such as emails, keys or card
+    # numbers, and fail on any finding (--sensitive). Only valid with command check; needs
+    # CLI 0.12.0 or newer. "true" or "false".
     # Default: false
     sensitive: "false"
 
-    # Comma-separated subset of target locales to run for, e.g. "de,fr" (maps to
-    # --locales). Empty (the default) runs every configured target locale. Applies to
-    # translate, check, and diff. Only letters, digits, "-", "_" and commas are accepted;
-    # anything else fails the step before installing the CLI.
+    # Comma-separated subset of target locales, for example "de,fr" (--locales). Empty
+    # runs every target locale. Only letters, digits, "-", "_" and commas are accepted.
     # Default: ''
     locales: ''
 
-    # Node.js version to set up for running the CLI. From @verbatra/cli 0.13.0 (a 0.13.0
-    # prerelease included) the action accepts only LTS lines: 22.22.0 or newer on the 22
-    # line, or an even-numbered line from 24 up (for example 24 or 26). That is stricter
-    # than the CLI's own engines range. 0.12.x needs 22.18.0 or newer on the 22 line, or
-    # 24 or newer. Older releases need 22.14.0 or newer. A version that resolves to
-    # anything else fails the step before installing the CLI.
+    # Node.js version to set up. For CLI 0.13.0 or newer it must be 22.22.0 or newer on
+    # the 22 line, or an even-numbered line from 24 up. Older CLI rules are in the README.
     # Default: 24
     node-version: "24"
 ```
