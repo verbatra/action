@@ -140,7 +140,7 @@ Each locale with unapproved keys gets one `REVIEW_REQUIRED` error annotation nam
 
 ### Translate a monorepo app
 
-`working-directory` must contain a recognized config file directly inside it. The lookup never walks up into a parent directory or the repository root, so a config at the outer root does not satisfy it. Set `config-path` to load a config from somewhere else.
+`working-directory` must contain a recognized config file directly inside it. The lookup never walks up into a parent directory or the repository root, so a config at the outer root does not satisfy it. Set `config-path` to load a config from somewhere else; every recognized file name is listed in the [config file discovery order](https://verbatra.kreitz-webdev.de/docs/config-file#discovery-order).
 
 ```yaml
       - uses: verbatra/action@v1
@@ -356,6 +356,7 @@ Set only the keys your configured provider needs, each as a `${{ secrets.* }}` r
 - A GitHub-hosted or self-hosted runner with `bash`, on Actions Runner v2.327.1 or newer. The action sets up Node.js itself via `actions/setup-node` v7.1.0, which runs on the `node24` runtime, so no Node.js step of your own is required.
 - Network access to the npm registry, to install `@verbatra/cli` at run time.
 - A verbatra config directly inside the resolved `working-directory`, plus locale files there.
+- Node.js 22.22.0, 24, and 26 are the versions this repository's own CI runs the action tests on.
 - A `node-version` the pinned CLI supports. The step fails before installing the CLI when it resolves outside the range:
 
 | `version` | Accepted Node.js |
@@ -366,7 +367,7 @@ Set only the keys your configured provider needs, each as a `${{ secrets.* }}` r
 
 ## Versioning
 
-`v1` is the only maintained line: every fix and feature lands there. Pin `v1` for convenience (it moves to the latest `v1.x.y` release), a specific `v1.x.y` tag for an immutable minor pin, or a full commit SHA for the most reproducible reference:
+`v1` is the only maintained line: every fix and feature lands there. Pin `v1` for convenience (it moves to the latest `v1.x.y` release), a specific `v1.x.y` tag to pin a release (a tag can in principle be moved), or a full commit SHA, the only immutable reference:
 
 ```yaml
       - uses: verbatra/action@84f75d2058654ada874a862df4ed0b41e9dd15a9 # v1.3.0
@@ -376,9 +377,23 @@ Keep the human-readable version in a trailing comment so the pin stays reviewabl
 
 The `version` input needs pinning too. It must be an exact semver `@verbatra/cli` release, `0.9.3` or newer, never a floating tag such as `latest` or a range: a floating reference pulls whatever is newest at run time, which is not reproducible and would auto-pull a compromised release. The action rejects anything else before installing. The `0.9.3` floor exists because earlier CLI releases resolve a `verbatra.config.ts` import of `defineConfig` against the config file's own location instead of the running CLI.
 
+## The verbatra project
+
+This action is the CI surface of verbatra: it runs the same `@verbatra/cli` you run locally, at a version you pin.
+
+| Where | What it is |
+| --- | --- |
+| [verbatra/verbatra](https://github.com/verbatra/verbatra) | The main project: `@verbatra/cli`, the `@verbatra/sdk` API, the `@verbatra/studio` dashboard, and the `@verbatra/mcp` MCP server |
+| [verbatra/skills](https://github.com/verbatra/skills) | Agent skills for the CLI, MCP tools, and Studio |
+| [`@verbatra/cli` on npm](https://www.npmjs.com/package/@verbatra/cli) | The package this action installs |
+
+## Documentation
+
+The [documentation site](https://verbatra.kreitz-webdev.de) is the canonical reference: the [GitHub Action guide](https://verbatra.kreitz-webdev.de/docs/github-action), the [CLI reference](https://verbatra.kreitz-webdev.de/docs/cli), and [Providers](https://verbatra.kreitz-webdev.de/docs/providers).
+
 ## Security
 
-API keys are read only from the environment and never accepted as an input; every `uses:` reference here is pinned to a full commit SHA, and the `version` input must be an exact semver. To report a vulnerability, see [SECURITY.md](./SECURITY.md).
+API keys are read only from the environment and never accepted as an input; every `uses:` reference in this repository's workflows and `action.yml` is pinned to a full commit SHA, and the `version` input must be an exact semver. Locale and key names from CLI output are percent-encoded in annotations and escaped in the job summary, so a crafted key cannot forge a workflow command or inject markdown. To report a vulnerability, see [SECURITY.md](./SECURITY.md).
 
 ## Contributing
 
