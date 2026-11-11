@@ -5,7 +5,7 @@
 <h1 align="center">verbatra GitHub Action</h1>
 
 <p align="center">
-  Run verbatra i18n translations in CI or gate a pull request on locale drift, annotate failures, and write a job summary, using OpenAI, Anthropic, Gemini, DeepL, Google Cloud Translation, a self-hosted LibreTranslate server, OpenCode (CLI 0.12.0 or newer), or an openai-compatible local or self-hosted model, or no machine provider at all (`none`, CLI 0.12.0 or newer).
+  Run verbatra translations in CI, or gate a pull request on locale drift, with annotations and a job summary.
 </p>
 
 <p align="center">
@@ -16,147 +16,13 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?color=7b1fa2&amp;labelColor=0B0B12" alt="License: MIT" /></a>
 </p>
 
-## What's new in v1
+## What's new
 
-`v1` is the only maintained line: every fix and feature lands there, and the `v1`
-tag moves to the newest release. Entries are newest first. Every v1 release has
-the same runner floor, because the action has pinned `actions/setup-node` v7
-since `v1.0.0` (currently
-`actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1`, v7.1.0), and that
-action runs on the `node24` runtime.
-
-### v1.4.0
-
-Tightens the Node.js range to LTS lines for CLI 0.13.0 and newer, the release
-where the CLI's `engines` range becomes `^22.22.0 || >=24`. From `version`
-0.13.0 the action accepts only LTS lines (22.22.0 or newer on the 22 line, or an
-even-numbered line from 24 up), which is stricter than the CLI's own `engines`
-range: the step fails before installing the CLI when `node-version` resolves to
-Node.js 22 below 22.22.0 or to an odd-numbered line such as 25. For `version`
-0.12.x the range is unchanged: 22.18.0 or newer on the 22 line, or 24 or newer.
-The fix is to upgrade the runner's Node.js: set `node-version` to `22.22.0` or
-newer on the 22 line, `24`, or `26`.
-
-### v1.3.0
-
-No breaking change. Adds the `qa`, `qa-severity`, and `qa-strict` inputs, which
-run `verbatra check --qa` over every committed translation and turn each finding
-into an annotation, the `require-reviewed` input, which runs
-`verbatra check --require-reviewed` and fails the step while a machine-written
-translation is not approved, and the `needs-human` output, which is `"true"` when
-`translate` exits `3` in human-only mode. That exit passes the step instead of
-failing it. It also adds the `sensitive` input, which runs
-`verbatra check --sensitive`, and the `locales` input, which limits a run to a
-comma-separated subset of target locales with `--locales`. The step now fails
-before installing the CLI when `node-version` resolves to a Node.js outside the
-pinned CLI's range (22.18.0 or newer on the 22 line, or 24 or newer for
-0.12.0 and newer; 22.14.0 or newer before). `check` now also warns about plurals that lack a CLDR plural category
-the target language uses, and a whole-run failure shows the CLI's `hint` as a
-next step and names the code of a wrapped error. See
-[Check translation quality](#check-translation-quality),
-[Require reviewed translations](#require-reviewed-translations), and
-[Human-only mode](#human-only-mode).
-
-Minimum runner: Actions Runner v2.327.1. Minimum `@verbatra/cli` for `qa`,
-`require-reviewed`, `sensitive`, and exit `3`: 0.12.0; every other input still works from
-0.9.3.
-
-### v1.2.0
-
-**Breaking.** The action now requires a recognized verbatra config directly
-inside the resolved `working-directory` and fails before installing anything when
-there is none. The lookup never walks up into a parent or ancestor directory, so
-a shared config at the repository root no longer satisfies a `working-directory`
-that points at a subdirectory. The failure names the exact path it checked and
-the input that controls it. Once a config is found, it is always passed to the
-CLI explicitly with `--config`.
-
-Also breaking: the `version` input is now rejected unless it is `0.9.3` or newer,
-because earlier CLI releases resolve a `verbatra.config.ts` import of
-`defineConfig` against the config file's own location instead of against the
-running CLI, and the action no longer works around that.
-
-This release also retired the `v2` prerelease and settled on the single `v1`
-line described above.
-
-Minimum runner: Actions Runner v2.327.1. Minimum `@verbatra/cli`: 0.9.3.
-
-### v1.1.4
-
-No breaking change, and no input contract change. Fixes the action merging its
-scratch install into the consumer's own `node_modules`, which could overwrite
-dependency versions in the checked-out tree or crash on a name collision with one
-of the CLI's transitive dependencies.
-
-Its release notes recommend moving to a `v2` line. That prerelease has since been
-retired; `v1` is the maintained line, and `v1.2.0` or newer is the upgrade.
-
-Minimum runner: Actions Runner v2.327.1.
-
-### v1.1.3
-
-No breaking change. `npm install --prefix` still parsed the consumer's existing
-`package.json`, so a pnpm or Yarn workspace-protocol dependency string there
-(`workspace:*`, pnpm's `catalog:`) crashed the install. The CLI now installs into
-an isolated scratch directory, and npm never reads the consumer's manifest.
-
-Minimum runner: Actions Runner v2.327.1.
-
-### v1.1.2
-
-No breaking change. Installing through a bare `npx --yes` put the CLI in an
-ephemeral cache that is never an ancestor of the config file on disk, so every
-`verbatra.config.ts` importing `defineConfig` failed with `CONFIG_INVALID`. The
-action now installs `@verbatra/cli` and `@verbatra/sdk` at the pinned version and
-invokes the binary through `npm exec`, which also fixed a Windows-runner failure.
-
-Minimum runner: Actions Runner v2.327.1.
-
-### v1.1.1
-
-No breaking change, and no behavior change. `action.yml`'s description was
-translation-only, which hid the read-only gate from the Marketplace listing.
-
-Minimum runner: Actions Runner v2.327.1.
-
-### v1.1.0
-
-No breaking change. Adds the `command` input, so the action can run the CLI's
-read-only `check` and `diff` commands as well as `translate`. Both are read-only:
-no provider call, no API key, no quota, so they gate a pull request from a fork.
-`command` defaults to `translate`, so existing workflows are unaffected.
-`dry-run` applies to `translate` only and is now rejected with the other two
-rather than ignored.
-
-Minimum runner: Actions Runner v2.327.1.
-
-### v1.0.1
-
-Documentation only. No breaking change, no behavior change, and no input
-contract change. The README and security policy carried at the release tag still
-described the action as unpublished with no releases; this brought the tagged
-tree in line with the default branch, which the Marketplace listing already
-rendered from.
-
-Minimum runner: Actions Runner v2.327.1.
-
-### v1.0.0
-
-First published release and the initial Marketplace listing: `translate` in CI,
-with annotations, a job summary, and the CLI's exit code propagated. Inputs:
-`version`, `config-path`, `working-directory`, `dry-run`, `node-version`.
-
-Minimum runner: Actions Runner v2.327.1.
-
-## What it does
-
-verbatra reads your locale files, works out what is missing or has drifted since the source last changed, and fills the gaps through the AI or machine-translation provider you configure, enforcing placeholder and ICU integrity on every result.
-
-This action runs `verbatra translate`, `check`, or `diff` (each with `--json`), turns the result into GitHub annotations and a job-summary table, and propagates the CLI's exit code. `check` and `diff` are read-only and need no provider API key, so they gate a pull request without spending anything.
+v1.3.0 adds the `qa`, `qa-severity`, `qa-strict`, `require-reviewed`, `sensitive`, and `locales` inputs, the `needs-human` output, and a Node.js check before the CLI installs. See [CHANGELOG.md](./CHANGELOG.md) for every release, and [Releases](https://github.com/verbatra/action/releases) for the published notes.
 
 ## Quick start
 
-Add the action to a workflow. `working-directory` (the repository root by default) needs a verbatra config file directly inside it, for example `verbatra.config.ts` or `.verbatrarc.json`, plus the API key of your configured provider, passed from `secrets`:
+verbatra reads your locale files, finds what is missing or has drifted since the source changed, and fills the gaps through the AI or machine-translation provider you configure. `working-directory` (the repository root by default) needs a verbatra config file directly inside it, for example `verbatra.config.ts` or `.verbatrarc.json`, plus the API key of your provider, passed from `secrets`:
 
 ```yaml
 name: Translate
@@ -181,9 +47,13 @@ jobs:
 
 `v1` is the moving tag that tracks the latest release; see [Versioning](#versioning) for an immutable pin. See [Configuration](https://verbatra.kreitz-webdev.de/docs/config-file) and [Providers](https://verbatra.kreitz-webdev.de/docs/providers) for the full reference.
 
+## Examples
+
+The snippets below show the action step; wrap them in a workflow like the one above.
+
 ### Preview without spending
 
-Set `dry-run: true` to report what would change without calling a provider and without writing any file. A dry run never constructs a provider, so it needs no API key at all.
+`dry-run: "true"` reports what would change without calling a provider or writing a file. It never constructs a provider, so it needs no API key.
 
 ```yaml
       - uses: verbatra/action@v1
@@ -194,7 +64,7 @@ Set `dry-run: true` to report what would change without calling a provider and w
 
 ### Gate a pull request
 
-Set `command: check` to fail a pull request whose locale files have drifted from the source. `check` is read-only: it writes nothing, never constructs a provider, and needs no API key or `secrets` wiring at all, so it also runs on pull requests from forks.
+`command: check` fails a pull request whose locale files have drifted from the source. It is read-only and needs no API key or `secrets` wiring, so it also runs on pull requests from forks.
 
 ```yaml
 name: i18n gate
@@ -214,7 +84,117 @@ jobs:
           command: check
 ```
 
-The step fails when any locale has missing or stale keys, and the job summary names the drifted locales and their counts, so the reason is visible without opening the log.
+The step fails when any locale has missing or stale keys, and the job summary names the drifted locales and their counts.
+
+### Check translation quality
+
+`qa: "true"` with `command: check` runs `verbatra check --qa`: the placeholder, markup, ICU, and plural checks and the review flags over every committed target value, including ones typed by hand. It is read-only and keyless, and needs `version` `0.12.0` or newer. A `0.12.0` prerelease is rejected on purpose: semver ranks it below the release, and it is not guaranteed to carry the final contract.
+
+```yaml
+      - uses: verbatra/action@v1
+        with:
+          version: 0.12.0
+          command: check
+          qa: "true"
+```
+
+Each finding becomes an annotation naming the locale, key, and reason: `::error::` for a value the integrity gate would refuse, `::warning::` for a review reason. The step fails on any error. Add `qa-strict: "true"` to fail on warnings too, or `qa-severity: error` to report errors only (the CLI rejects `error` together with `qa-strict`, with exit code 2). `check` also warns, once per locale, about plurals that lack a CLDR plural category the target language uses (`PLURAL_CATEGORIES_INCOMPLETE`).
+
+### Require reviewed translations
+
+`require-reviewed: "true"` with `command: check` fails the step while any machine-written translation (origin `machine`, `memory`, `fuzzy`, or `agent`) is not approved in the committed `verbatra.provenance.json`, where Studio and the MCP review tools record decisions. It is read-only, keyless, combines with `qa`, and needs `version` `0.12.0` or newer.
+
+```yaml
+      - uses: verbatra/action@v1
+        with:
+          version: 0.12.0
+          command: check
+          require-reviewed: "true"
+```
+
+Each locale with unapproved keys gets one `REVIEW_REQUIRED` error annotation naming them. A corrupt `verbatra.provenance.json`, or one from a newer verbatra, fails the gate with `REVIEW_STATE_UNREADABLE`.
+
+### Scan for sensitive content
+
+`sensitive: "true"` with `command: check` scans the source file and glossary for content that looks sensitive, such as emails, keys, or card numbers, and fails on any finding. It is read-only, keyless, and needs `version` `0.12.0` or newer.
+
+```yaml
+      - uses: verbatra/action@v1
+        with:
+          version: 0.12.0
+          command: check
+          sensitive: "true"
+```
+
+### Limit a run to some locales
+
+`locales` takes a comma-separated subset of the configured target locales and works with `translate`, `check`, and `diff` on every supported CLI version.
+
+```yaml
+      - uses: verbatra/action@v1
+        with:
+          version: 0.12.0
+          command: check
+          locales: "de,fr"
+```
+
+### Translate a monorepo app
+
+`working-directory` must contain a recognized config file directly inside it. The lookup never walks up into a parent directory or the repository root, so a config at the outer root does not satisfy it. Set `config-path` to load a config from somewhere else; every recognized file name is listed in the [config file discovery order](https://verbatra.kreitz-webdev.de/docs/config-file#discovery-order).
+
+```yaml
+      - uses: verbatra/action@v1
+        with:
+          version: 0.12.0
+          working-directory: apps/docs
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+### Hand keys to a person (human-only mode)
+
+A config with `provider: { id: "none" }` disables machine translation: `translate` fills keys only from exact translation-memory hits, reads no API key, and leaves the rest for a person. When it leaves any, the CLI exits `3`. That passes the step, writes one `::warning::` per locale naming the keys, and sets the `needs-human` output to `"true"`. Branch on it to hand the keys off, for example with `verbatra export`. Exit `3` needs `@verbatra/cli` `0.12.0` or newer; from `check` or `diff` it still fails the step.
+
+```yaml
+      - uses: verbatra/action@v1
+        id: verbatra
+        with:
+          version: 0.12.0
+      - if: steps.verbatra.outputs.needs-human == 'true'
+        run: echo "Some keys need a human translation; see the job summary."
+```
+
+### Translate and open a pull request
+
+Run `translate`, then let `peter-evans/create-pull-request` commit the changed locale files to a branch and open a pull request. The job needs `contents: write` and `pull-requests: write`, and the repository setting Settings > Actions > General > "Allow GitHub Actions to create and approve pull requests" must be enabled. A pull request opened with the default `GITHUB_TOKEN` does not trigger other workflows, so your `check` gate will not run on it unless you pass a personal access token or GitHub App token as the `token` input.
+
+```yaml
+name: Translate
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: verbatra/action@v1
+        with:
+          version: 0.12.0
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
+        with:
+          branch: verbatra/translations
+          commit-message: "chore(i18n): update translations"
+          title: "chore(i18n): update translations"
+          body: "Translations updated by the verbatra action."
+```
 
 ## Choosing a command
 
@@ -231,181 +211,99 @@ The `command` input selects which CLI command runs. All three report through the
 | `diff` | no | no | any locale has pending changes |
 
 - Use **`check`** as a pull-request gate: the smallest, fastest signal, with per-locale counts of missing, stale, and up-to-date keys.
-- Use **`diff`** for the same gate when a reviewer needs to see *which* keys are pending. It lists the key names per locale, split into missing and changed, and calls out orphaned keys (present in a target locale but no longer in the source) separately, since those never fail the step on their own.
-- Add **`qa: "true"`** to `check` to also review every committed translation, including ones typed by hand or merged from another tool. See [Check translation quality](#check-translation-quality).
-- Add **`require-reviewed: "true"`** to `check` to fail while machine-written translations wait for a person's approval. See [Require reviewed translations](#require-reviewed-translations).
-- Use **`translate --dry-run`** to preview the work a real run would do, in translate's own terms (translated, unchanged, integrity-withheld, and provider-failure counts), without writing anything.
-
-### Check translation quality
-
-Set `qa: "true"` together with `command: check` to run `verbatra check --qa`, which runs the placeholder, markup, ICU, and plural checks and the review flags over every committed target value, not only over values verbatra writes itself. It is read-only and keyless like `check`, and needs `version` `0.12.0` or newer; the action rejects `qa` with an older version before installing anything. A prerelease such as `0.12.0-next.0` is rejected too, deliberately: semver ranks a prerelease below its release, and a prerelease is not guaranteed to carry the final `check --qa` contract, so pin the release.
-
-```yaml
-      - uses: verbatra/action@v1
-        with:
-          version: 0.12.0
-          command: check
-          qa: "true"
-```
-
-Each finding becomes an annotation naming the locale, the key, and the reason: an `::error::` for a value the integrity gate would refuse, and a `::warning::` for a review reason. The job summary adds `qa errors` and `qa warnings` columns and a findings table. The step fails on any error finding. Set `qa-strict: "true"` to fail on warnings too, or `qa-severity: error` to report errors only. The CLI rejects any other `qa-severity` value, and rejects `qa-severity: error` together with `qa-strict`, with exit code 2.
-
-The job summary's findings table is the full view: it lists every finding (up to 1000, to keep the summary under GitHub's size limit). Annotations are only a preview, because GitHub shows at most 10 error, 10 warning, and 10 notice annotations per step ([annotation limits](https://github.com/actions/toolkit/blob/main/docs/problem-matchers.md#limitations)). The action keeps drift errors first, then review errors, then quality errors, then warnings, and adds one notice counting what it left out.
-
-Every `check` also lists the plurals that lack a CLDR plural category their target language uses, such as a Polish plural with only `one` and `other`, as one `PLURAL_CATEGORIES_INCOMPLETE` warning per locale. It never fails a plain `check`; with `qa-strict` it fails the step like any other warning.
-
-### Require reviewed translations
-
-Set `require-reviewed: "true"` together with `command: check` to run `verbatra check --require-reviewed`, which fails the step while any machine-written translation (origin `machine`, `memory`, `fuzzy`, or `agent`) is not approved in the committed `verbatra.provenance.json`, where Studio and the MCP review tools record decisions. It is read-only and keyless like `check`, combines with `qa`, and needs `version` `0.12.0` or newer; the action rejects it with an older version or a `0.12.0` prerelease before installing anything, as it does `qa`.
-
-```yaml
-      - uses: verbatra/action@v1
-        with:
-          version: 0.12.0
-          command: check
-          require-reviewed: "true"
-```
-
-Each locale with unapproved keys becomes one `REVIEW_REQUIRED` error annotation naming them, and the job summary adds an `unreviewed` column. A `verbatra.provenance.json` that is corrupt or from a newer verbatra fails the gate with one `REVIEW_STATE_UNREADABLE` annotation, since no decision can be read.
-
-### Scan for sensitive content
-
-Set `sensitive: "true"` together with `command: check` to run `verbatra check --sensitive`, which scans the source file and glossary for content that looks sensitive, such as emails, keys, or card numbers, and fails the step on any finding. It is read-only and keyless like `check`, and needs `version` `0.12.0` or newer; the action rejects it with any other command, an older version, or a `0.12.0` prerelease before installing anything.
-
-```yaml
-      - uses: verbatra/action@v1
-        with:
-          version: 0.12.0
-          command: check
-          sensitive: "true"
-```
-
-### Limit a run to some locales
-
-Set `locales` to a comma-separated list such as `de,fr` to run `translate`, `check`, or `diff` for that subset of the configured target locales (`--locales`). Only letters, digits, `-`, `_`, and commas are accepted, and it works with every CLI version the action supports.
-
-```yaml
-      - uses: verbatra/action@v1
-        with:
-          version: 0.12.0
-          command: check
-          locales: "de,fr"
-```
+- Use **`diff`** for the same gate when a reviewer needs to see *which* keys are pending. It lists key names per locale, split into missing and changed, and calls out orphaned keys (in a target locale but no longer in the source) separately; those never fail the step on their own.
+- Use **`translate --dry-run`** to preview a real run in translate's own terms (translated, unchanged, integrity-withheld, and provider-failure counts) without writing anything.
 
 ## Inputs
 
-Every input and its default, generated from [`action.yml`](./action.yml).
-`version` is the only required one.
+`version` is the only required input. The table says when each one applies; a value used with the wrong command fails the step before the CLI is installed.
+
+| Input | Default | Applies to |
+| --- | --- | --- |
+| `version` | none (required) | every command |
+| `command` | `translate` | every command |
+| `config-path` | empty | every command |
+| `working-directory` | empty (repository root) | every command |
+| `dry-run` | `"false"` | `translate` only |
+| `qa` | `"false"` | `check` only |
+| `qa-severity` | empty (errors and warnings) | `check` with `qa` |
+| `qa-strict` | `"false"` | `check` with `qa` |
+| `require-reviewed` | `"false"` | `check` only |
+| `sensitive` | `"false"` | `check` only |
+| `locales` | empty (every target locale) | `translate`, `check`, `diff` |
+| `node-version` | `"24"` | every command |
+
+The reference below is generated from [`action.yml`](./action.yml).
 
 <!-- start usage -->
 ```yaml
 - uses: verbatra/action@v1
   with:
-    # The @verbatra/cli version to run, e.g. 1.2.3. PIN this to an exact version for
-    # reproducible, supply-chain-safe CI; do NOT use a floating tag such as "latest" (it
-    # pulls whatever is newest at run time, which is non-reproducible and would auto-pull
-    # a compromised release). The action rejects anything that is not an exact semver
-    # (dist-tags, ranges, and ^/~ prefixes all fail the step). Must be 0.9.3 or newer:
-    # older releases resolve a verbatra.config.ts import of defineConfig from
-    # @verbatra/cli or @verbatra/sdk against the config file's own location rather than
-    # against the running CLI, and the action no longer works around that. Required.
+    # Exact @verbatra/cli version to install, for example 0.12.0. Must be 0.9.3 or newer;
+    # tags, ranges and prefixes are rejected.
     version: ''
 
-    # Which verbatra command to run. One of "translate" (default, writes translations),
-    # "check" (read-only, exits 1 when any locale has missing or stale keys), or "diff"
-    # (read-only, exits 1 when any locale has pending changes). The read-only commands
-    # need no provider API key, so they work as a CI gate on a fork pull request. Anything
-    # outside that set fails the step.
+    # The verbatra command to run: "translate" (default), "check" or "diff". The last two
+    # are read-only and need no API key.
     # Default: translate
     command: translate
 
-    # Explicit config file to load (maps to --config). A relative path resolves against
-    # working-directory, not against the repository root. Empty (the default) requires a
-    # recognized verbatra config file directly inside working-directory; the step fails
-    # before installing the CLI when none is found there. The lookup is strict and not
-    # inherited: it never walks up into a parent directory or the repository root, even
-    # when one of them holds a valid config.
+    # Config file to load (--config). A relative path resolves against working-directory.
+    # When empty, a config must exist directly inside working-directory; parent
+    # directories are never searched.
     # Default: ''
     config-path: ''
 
-    # Directory to resolve config and locale files against (maps to --cwd). Config lookup
-    # (when config-path is empty) is strict: it looks only directly inside this directory,
-    # never a parent or ancestor, even when working-directory is unset and resolves to the
-    # repository root. For example, in a monorepo where the app to translate lives at
-    # apps/docs, set working-directory to apps/docs and put the config there; a config at
-    # the repository root does not satisfy the check.
+    # Directory holding the verbatra config and locale files (--cwd). Defaults to the
+    # repository root; in a monorepo, set it to the app directory.
     # Default: ''
     working-directory: ''
 
-    # Report what would change without calling a provider or writing (maps to --dry-run).
-    # Applies only to the translate command; combining it with check or diff fails the
-    # step, because those commands are already read-only and the CLI rejects the flag.
-    # Must be "true" or "false"; any other value fails the step.
+    # Preview a translate run without calling a provider or writing files (--dry-run).
+    # Only valid with command translate. "true" or "false".
     # Default: false
     dry-run: "false"
 
-    # Also run the quality check over every committed translation (maps to --qa). Applies
-    # only to the check command; any other command fails the step. Each finding becomes an
-    # annotation: an error for a value the integrity gate would refuse (a broken
-    # placeholder, markup, or ICU message), a warning for a review reason. The step fails
-    # on any error finding. Needs version 0.12.0 or newer; an older version fails the step
-    # before installing the CLI. Must be "true" or "false"; any other value fails the
-    # step.
+    # Run the quality check over every committed translation and annotate each finding
+    # (--qa). Only valid with command check; needs CLI 0.12.0 or newer. "true" or "false".
     # Default: false
     qa: "false"
 
-    # Lowest quality-check severity to report, "error" or "warning" (maps to --severity).
-    # Empty (the default) reports both. Requires qa; the CLI rejects any other value, and
-    # rejects "error" together with qa-strict.
+    # Lowest quality-check severity to report, "error" or "warning" (--severity). Empty
+    # reports both. Requires qa; "error" cannot be combined with qa-strict.
     # Default: ''
     qa-severity: ''
 
-    # Also fail the step when the quality check reports only warnings (maps to --strict).
-    # Requires qa. Must be "true" or "false"; any other value fails the step.
+    # Also fail when the quality check reports only warnings (--strict). Requires qa.
+    # "true" or "false".
     # Default: false
     qa-strict: "false"
 
-    # Also fail the step while any machine-written translation is not approved in the
-    # committed verbatra.provenance.json (maps to --require-reviewed). Applies only to the
-    # check command; any other command fails the step. Each locale with unapproved keys
-    # becomes an error annotation naming them. Keyless like check. Needs version 0.12.0 or
-    # newer; an older version fails the step before installing the CLI. Must be "true" or
-    # "false"; any other value fails the step.
+    # Fail while any machine-written translation is not approved in
+    # verbatra.provenance.json (--require-reviewed). Only valid with command check; needs
+    # CLI 0.12.0 or newer. "true" or "false".
     # Default: false
     require-reviewed: "false"
 
-    # Also scan the source file and glossary for content that looks sensitive, such as
-    # emails, keys, or card numbers, and fail the step on any finding (maps to
-    # --sensitive). Applies only to the check command; any other command fails the step.
-    # Keyless like check. Needs version 0.12.0 or newer; an older version fails the step
-    # before installing the CLI. Must be "true" or "false"; any other value fails the
-    # step.
+    # Scan the source file and glossary for sensitive content such as emails, keys or card
+    # numbers, and fail on any finding (--sensitive). Only valid with command check; needs
+    # CLI 0.12.0 or newer. "true" or "false".
     # Default: false
     sensitive: "false"
 
-    # Comma-separated subset of target locales to run for, e.g. "de,fr" (maps to
-    # --locales). Empty (the default) runs every configured target locale. Applies to
-    # translate, check, and diff. Only letters, digits, "-", "_" and commas are accepted;
-    # anything else fails the step before installing the CLI.
+    # Comma-separated subset of target locales, for example "de,fr" (--locales). Empty
+    # runs every target locale. Only letters, digits, "-", "_" and commas are accepted.
     # Default: ''
     locales: ''
 
-    # Node.js version to set up for running the CLI. From @verbatra/cli 0.13.0 (a 0.13.0
-    # prerelease included) the action accepts only LTS lines: 22.22.0 or newer on the 22
-    # line, or an even-numbered line from 24 up (for example 24 or 26). That is stricter
-    # than the CLI's own engines range. 0.12.x needs 22.18.0 or newer on the 22 line, or
-    # 24 or newer. Older releases need 22.14.0 or newer. A version that resolves to
-    # anything else fails the step before installing the CLI.
+    # Node.js version to set up. For CLI 0.13.0 or newer it must be 22.22.0 or newer on
+    # the 22 line, or an even-numbered line from 24 up. Older CLI rules are in the README.
     # Default: 24
     node-version: "24"
 ```
 <!-- end usage -->
 
-`version` names the `@verbatra/cli` release the action installs. It is a
-different number from the action's own `v1` tag in `uses:`; see
-[Versioning](#versioning). For what `command` selects, see
-[Choosing a command](#choosing-a-command). For how `config-path` and
-`working-directory` interact, see [Config discovery](#config-discovery).
+`version` names the `@verbatra/cli` release the action installs. It is a different number from the action's own `v1` tag in `uses:`; see [Versioning](#versioning).
 
 ## Outputs
 
@@ -413,50 +311,27 @@ different number from the action's own `v1` tag in `uses:`; see
 | --- | --- |
 | `needs-human` | `"true"` when `translate` exited 3 because machine translation is disabled by policy and keys are left for a person, otherwise `"false"` |
 
-Everything else is delivered as annotations, a job summary, and the job's exit
-status. See [Human-only mode](#human-only-mode).
+Everything else is delivered as annotations, a job summary, and the job's exit status. See [Hand keys to a person](#hand-keys-to-a-person-human-only-mode).
 
-## Human-only mode
+## Job summary and annotations
 
-A config with `provider: { id: "none" }` disables machine translation by policy: `translate` fills keys only from exact translation-memory hits, reads no API key, and leaves every other missing or stale key for a person. When it leaves any, the CLI exits `3`. That is not a failure, so the action passes the step, writes one `::warning::` annotation per locale naming the keys (unfilled keys, and protected keys a person has to review), lists them in the job summary, and sets the `needs-human` output to `"true"`. Branch on the output to hand the keys off, for example with `verbatra export`:
+Every run writes a job summary to `GITHUB_STEP_SUMMARY` and annotates failures with `::error::` workflow commands, then exits with the CLI's own exit code, after the annotations and summary are emitted. The exception is `translate` exiting `3`, which passes the step.
 
-```yaml
-      - uses: verbatra/action@v1
-        id: verbatra
-        with:
-          version: 0.12.0
-      - if: steps.verbatra.outputs.needs-human == 'true'
-        run: echo "Some keys need a human translation; see the job summary."
-```
+- GitHub shows at most 10 annotations of each severity per step, so past that the action adds one notice counting the rest. The job summary is the full report.
+- A per-locale annotation names the locale file (`file=`) when it can be resolved from the config's `files.pattern` within 10 seconds, so GitHub shows it in the pull request's changed files.
+- A `translate` locale is `ok`, `partial` (written, but some keys withheld), or `failed`; `partial` gets its own `LOCALE_PARTIAL` annotation.
+- A whole-run failure shows the error code, the wrapped cause, and the CLI's `hint` as a `Next step:`. Every code is on [Error codes](https://verbatra.kreitz-webdev.de/docs/error-codes), and every exit code on [Exit codes and JSON output](https://verbatra.kreitz-webdev.de/docs/cli/output#exit-codes).
 
-Exit `3` needs `@verbatra/cli` `0.12.0` or newer; an earlier CLI has no human-only mode and never exits `3`. Exit `3` from `check` or `diff` is not reinterpreted and still fails the step, as does a partial or failed locale, which the CLI reports with exit `1` instead.
-
-## Config discovery
-
-`working-directory` (the repository root by default) must contain a recognized verbatra config file directly inside it, for example `verbatra.config.ts` or `.verbatrarc.json`. The lookup never walks up into a parent directory or the repository root, even when an ancestor holds a valid config, and the action always passes the resolved config to the CLI explicitly with `--config`. If no config is found there, the step fails before installing the CLI, naming the exact directory it checked.
-
-In a monorepo, point `working-directory` at the app you are translating:
-
-```yaml
-      with:
-        version: 0.12.0
-        working-directory: apps/docs
-```
-
-Here a recognized config must exist directly inside `apps/docs`; a config at the outer repository root does not satisfy the check. Set `config-path` to load a config from somewhere else instead.
-
-See the [GitHub Action guide](https://verbatra.kreitz-webdev.de/docs/github-action) for the full rules, and [config file discovery order](https://verbatra.kreitz-webdev.de/docs/config-file#discovery-order) for every recognized file name.
+The full behavior, including the JSON schemas the action reads, is in the [GitHub Action guide](https://verbatra.kreitz-webdev.de/docs/github-action).
 
 ## Permissions
 
-A composite action cannot declare its own `permissions:`; only the consuming workflow can. Set `permissions:` to least privilege at the workflow or job level. The documented happy path needs only `contents: read`. Do not grant anything broader unless your own surrounding steps require it.
+A composite action cannot declare its own `permissions:`; only the consuming workflow can. The `translate`, `check`, and `diff` examples above need only `contents: read`. Grant more on the job that needs it, as in [Translate and open a pull request](#translate-and-open-a-pull-request), rather than widening the whole workflow.
 
 ```yaml
 permissions:
   contents: read
 ```
-
-If you add steps that commit the translated files back or open a pull request, grant the extra scope on that job alone rather than widening the whole workflow.
 
 ## Secret wiring
 
@@ -472,63 +347,57 @@ API keys come only from environment variables, never from action inputs or a lit
 | `opencode` | `OPENCODE_API_KEY`; needs CLI 0.12.0 or newer |
 | `openai-compatible` | `OPENAI_COMPATIBLE_API_KEY`, or the variable named by `provider.options.apiKeyEnvVar`; omit entirely for a server that needs no key. An `apiKeyEnvVar` naming `OPENCODE_API_KEY` is rejected (`CONFIG_INVALID`): use the `opencode` provider instead |
 | `libretranslate` | `LIBRETRANSLATE_API_KEY`, only when your server requires a key |
-| `none` | none; machine translation is disabled and keys are left for a person, see [Human-only mode](#human-only-mode); needs CLI 0.12.0 or newer |
+| `none` | none; machine translation is disabled and keys are left for a person; needs CLI 0.12.0 or newer |
 
-Set only the keys your configured provider needs, and each value must be a `${{ secrets.* }}` reference, never a literal. Keys are never echoed: the action's own error messages name the variable but never a value.
+Set only the keys your configured provider needs, each as a `${{ secrets.* }}` reference, never a literal. The action's error messages name the variable but never a value.
 
-## Job summary and annotations
+## Requirements
 
-Every run writes a job summary to `GITHUB_STEP_SUMMARY` (a per-locale counts table, or a whole-run failure heading) and annotates failures with `::error::` workflow commands, one per affected locale or one for a whole-run failure. A `check` with `qa` adds one annotation per quality finding, `::warning::` for a review reason. A whole-run failure, such as a locale the provider does not support (`LOCALE_UNSUPPORTED_BY_PROVIDER`, exit `2`), shows the error code, the code of the error it wraps as `(cause: MISSING_API_KEY)`, and, with a CLI that reports one, the `hint` from its JSON error record as a `Next step:` in both the annotation and the summary. Every code is explained on [Error codes](https://verbatra.kreitz-webdev.de/docs/error-codes), and every exit code on [Exit codes and JSON output](https://verbatra.kreitz-webdev.de/docs/cli/output#exit-codes). GitHub shows at most 10 annotations of each severity per step, so past that the action adds one notice counting the rest, and the job summary remains the full report. The job then exits with the CLI's own exit code, and it does so only after the annotations and the summary have been emitted. The one exception is `translate` exiting `3`, which passes the step; see [Human-only mode](#human-only-mode).
+- A GitHub-hosted or self-hosted runner with `bash`, on Actions Runner v2.327.1 or newer. The action sets up Node.js itself via `actions/setup-node` v7.1.0, which runs on the `node24` runtime, so no Node.js step of your own is required.
+- Network access to the npm registry, to install `@verbatra/cli` at run time.
+- A verbatra config directly inside the resolved `working-directory`, plus locale files there.
+- Node.js 22.22.0, 24, and 26 are the versions this repository's own CI runs the action tests on.
+- A `node-version` the pinned CLI supports. The step fails before installing the CLI when it resolves outside the range:
 
-A per-locale annotation names that locale's file (`file=`), so GitHub shows it on the locale file in the pull request's changed files. The action resolves the file from the config's `files.pattern` through the `@verbatra/sdk` it installs next to the CLI, relative to the repository root. When the file cannot be resolved within 10 seconds, or lies outside the workspace, the annotation is written without one. A whole-run failure and an unreadable `verbatra.provenance.json` never name a file.
-
-For `translate`, a locale's status is `ok`, `partial`, or `failed`. A `partial` locale was written, but some of its keys were withheld by the integrity gate, a provider failure, or the token budget, and the CLI exits 1 for it just as for a failed one. It gets its own `LOCALE_PARTIAL` annotation naming how many keys landed and which were withheld, a `partial` value in the status column, a line under "Partial locales" in the summary, and its own count on the aggregate line (`3 locales: 1 succeeded, 1 partial, 1 failed`). A failed locale with no error of its own, because every key was withheld, names its withheld keys the same way.
-
-The JSON this action reads follows https://verbatra.kreitz-webdev.de/schema/v1/translate-envelope.json for `verbatra translate --json`, https://verbatra.kreitz-webdev.de/schema/v1/check-envelope.json for `verbatra check --json`, and https://verbatra.kreitz-webdev.de/schema/v1/diff-envelope.json for `verbatra diff --json`; every command's envelope is listed at https://verbatra.kreitz-webdev.de/schema/v1.
+| `version` | Accepted Node.js |
+| --- | --- |
+| `0.13.0` or newer (a prerelease included) | 22.22.0 or newer on the 22 line, or an even-numbered line from 24 up (for example 24 or 26); stricter than the CLI's own `engines` range |
+| `0.12.x` | 22.18.0 or newer on the 22 line, or 24 or newer |
+| older than `0.12.0` | 22.14.0 or newer |
 
 ## Versioning
 
-`v1` is the only maintained line: every fix and feature lands there. Pin `v1` for convenience (it moves to the latest `v1.x.y` release), a specific `v1.x.y` tag for an immutable minor pin, or a full commit SHA for the most reproducible reference:
+`v1` is the only maintained line: every fix and feature lands there. Pin `v1` for convenience (it moves to the latest `v1.x.y` release), a specific `v1.x.y` tag to pin a release (a tag can in principle be moved), or a full commit SHA, the only immutable reference:
 
 ```yaml
-      - uses: verbatra/action@0221b030d517d8af621fb6b812fcfd17a1f940ee # v1.2.0
+      - uses: verbatra/action@84f75d2058654ada874a862df4ed0b41e9dd15a9 # v1.3.0
 ```
 
 Keep the human-readable version in a trailing comment so the pin stays reviewable, and let Dependabot propose the SHA bumps.
 
-An early `v2` prerelease existed briefly as a one-time breaking snapshot; it has been retired in favor of this single, continuously updated `v1` line. [What's new in v1](#whats-new-in-v1) lists every release on it, newest first.
-
-Two things need pinning for reproducible, supply-chain-safe CI: the `uses:` reference above, and the `version` input, which must be an exact semver `@verbatra/cli` release (`0.9.3` or newer) rather than a floating tag such as `latest` or a range. The action rejects anything else before installing.
-
-## Requirements
-
-- A GitHub-hosted or self-hosted runner with `bash` available, on Actions Runner v2.327.1 or newer. The action sets up Node.js itself via `actions/setup-node` v7.1.0, which runs on the `node24` runtime and needs that runner floor, so no Node.js step of your own is required.
-- Network access to the npm registry, to install `@verbatra/cli` at run time.
-- A verbatra config directly inside the resolved `working-directory` (the repository root by default), plus locale files there. See [Config discovery](#config-discovery).
+The `version` input needs pinning too. It must be an exact semver `@verbatra/cli` release, `0.9.3` or newer, never a floating tag such as `latest` or a range: a floating reference pulls whatever is newest at run time, which is not reproducible and would auto-pull a compromised release. The action rejects anything else before installing. The `0.9.3` floor exists because earlier CLI releases resolve a `verbatra.config.ts` import of `defineConfig` against the config file's own location instead of the running CLI.
 
 ## The verbatra project
 
-This action is the CI surface of verbatra, not a separate tool. It wraps the same `@verbatra/cli` you run locally, at a version you pin, so a CI run and a developer's run do the same work.
+This action is the CI surface of verbatra: it runs the same `@verbatra/cli` you run locally, at a version you pin.
 
 | Where | What it is |
 | --- | --- |
-| [github.com/verbatra/verbatra](https://github.com/verbatra/verbatra) | The main project: the `@verbatra/cli` command-line tool, the `@verbatra/sdk` programmatic API, the `@verbatra/studio` local dashboard, and the `@verbatra/mcp` stdio MCP server. |
-| [`@verbatra/cli` on npm](https://www.npmjs.com/package/@verbatra/cli) | The package this action installs and runs. |
-| [verbatra.kreitz-webdev.de](https://verbatra.kreitz-webdev.de) | The documentation site, including the [GitHub Action guide](https://verbatra.kreitz-webdev.de/docs/github-action) and the [CLI reference](https://verbatra.kreitz-webdev.de/docs/cli). |
-
-Issues about translation behavior, formats, providers, or the CLI itself belong in the [main repository](https://github.com/verbatra/verbatra/issues). Issues about the action's inputs, annotations, or job summary belong [here](https://github.com/verbatra/action/issues).
-
-## Security
-
-Provider API keys are never accepted as an action input; they are read only from the environment, passed in from `${{ secrets.* }}`. Every `uses:` reference in this repository is pinned to a full commit SHA, the lockfile is committed and CI installs are frozen, and the `version` input is rejected unless it is an exact semver version. Locale and key names taken from CLI output are percent-encoded in annotations and escaped in the job summary, so a crafted key cannot forge a workflow command or inject markdown structure. To report a vulnerability, see [SECURITY.md](./SECURITY.md).
+| [verbatra/verbatra](https://github.com/verbatra/verbatra) | The main project: `@verbatra/cli`, the `@verbatra/sdk` API, the `@verbatra/studio` dashboard, and the `@verbatra/mcp` MCP server |
+| [verbatra/skills](https://github.com/verbatra/skills) | Agent skills for the CLI, MCP tools, and Studio |
+| [`@verbatra/cli` on npm](https://www.npmjs.com/package/@verbatra/cli) | The package this action installs |
 
 ## Documentation
 
-The hosted documentation site at [verbatra.kreitz-webdev.de](https://verbatra.kreitz-webdev.de) is the canonical reference. The [GitHub Action guide](https://verbatra.kreitz-webdev.de/docs/github-action) covers this action in the context of a full project, and the [CLI reference](https://verbatra.kreitz-webdev.de/docs/cli) documents every command and flag the action runs on your behalf.
+The [documentation site](https://verbatra.kreitz-webdev.de) is the canonical reference: the [GitHub Action guide](https://verbatra.kreitz-webdev.de/docs/github-action), the [CLI reference](https://verbatra.kreitz-webdev.de/docs/cli), and [Providers](https://verbatra.kreitz-webdev.de/docs/providers).
+
+## Security
+
+API keys are read only from the environment and never accepted as an input; every `uses:` reference in this repository's workflows and `action.yml` is pinned to a full commit SHA, and the `version` input must be an exact semver. Locale and key names from CLI output are percent-encoded in annotations and escaped in the job summary, so a crafted key cannot forge a workflow command or inject markdown. To report a vulnerability, see [SECURITY.md](./SECURITY.md).
 
 ## Contributing
 
-Contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md) first; they follow the main project's guidelines, with the differences this repository actually has (npm rather than pnpm, no changesets, no commit hook). Commits here follow Conventional Commits. Run `npm ci && npm test` before opening a pull request; the same suite runs in CI on Node 22.22.0, 24 and 26, alongside a job that runs the action against itself.
+Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md) first. Issues about translation behavior, formats, providers, or the CLI belong in the [main repository](https://github.com/verbatra/verbatra/issues); issues about this action's inputs, annotations, or job summary belong [here](https://github.com/verbatra/action/issues). Run `npm ci && npm test` before opening a pull request.
 
 ## License
 
