@@ -36,16 +36,17 @@ failing it. It also adds the `sensitive` input, which runs
 comma-separated subset of target locales with `--locales`. The step now fails
 before installing the CLI when `node-version` resolves to a Node.js outside the
 pinned CLI's range (22.18.0 or newer on the 22 line, or 24 or newer for
-0.12.0 and newer; 22.14.0 or newer before). `check` now also warns about plurals that lack a CLDR plural category
-the target language uses, and a whole-run failure shows the CLI's `hint` as a
-next step and names the code of a wrapped error. See
+0.12.0 and newer; 22.14.0 or newer before). `check` now also warns about plurals
+that lack a CLDR plural category the target language uses, and a whole-run
+failure shows the CLI's `hint` as a next step and names the code of a wrapped
+error. See
 [Check translation quality](README.md#check-translation-quality),
 [Require reviewed translations](README.md#require-reviewed-translations), and
 [Human-only mode](README.md#hand-keys-to-a-person-human-only-mode).
 
 Minimum runner: Actions Runner v2.327.1. Minimum `@verbatra/cli` for `qa`,
-`require-reviewed`, `sensitive`, and exit `3`: 0.12.0; every other input still works from
-0.9.3.
+`require-reviewed`, `sensitive`, and exit `3`: 0.12.0; every other input still
+works from 0.9.3.
 
 ## [1.2.0] - 2026-08-19
 
@@ -133,3 +134,14 @@ with annotations, a job summary, and the CLI's exit code propagated. Inputs:
 `version`, `config-path`, `working-directory`, `dry-run`, `node-version`.
 
 Minimum runner: Actions Runner v2.327.1.
+
+[Unreleased]: https://github.com/verbatra/action/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/verbatra/action/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/verbatra/action/compare/v1.1.4...v1.2.0
+[1.1.4]: https://github.com/verbatra/action/compare/v1.1.3...v1.1.4
+[1.1.3]: https://github.com/verbatra/action/compare/v1.1.2...v1.1.3
+[1.1.2]: https://github.com/verbatra/action/compare/v1.1.1...v1.1.2
+[1.1.1]: https://github.com/verbatra/action/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/verbatra/action/compare/v1.0.1...v1.1.0
+[1.0.1]: https://github.com/verbatra/action/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/verbatra/action/releases/tag/v1.0.0
