@@ -164,10 +164,7 @@ To release:
    changed, and confirm `npm run docs:usage:check` passes.
 4. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and add
    a fresh empty `## [Unreleased]` above it.
-5. Update the README: the "What's new" paragraph, and the full-SHA example under
-   "Versioning" to the new release commit with a `# vX.Y.Z` comment. The tests in
-   `release-docs.test.mjs` fail when `package.json`, the latest `CHANGELOG.md`
-   entry, and that example disagree.
+5. Update the README "What's new" paragraph in the same pull request.
 6. Run `npm ci && npm test` and open a pull request with these changes; merge it
    once CI is green.
 7. Tag the merge commit `vX.Y.Z` and push the tag.
@@ -175,6 +172,12 @@ To release:
    entry.
 9. Move the `v1` tag to the same commit so consumers of `uses: verbatra/action@v1`
    receive it.
+10. Open a follow-up pull request that updates the full-SHA example under
+    "Versioning" in the README to the new release commit with a `# vX.Y.Z` comment,
+    since the SHA exists only once the tag does. `release-docs.test.mjs` checks that
+    the SHA equals the commit of the tag named in its comment, so the example may
+    lag one release but never name a wrong commit. CI fetches full history so that
+    check runs there; it is skipped only in a local clone without the tag.
 
 ## Commit convention
 
