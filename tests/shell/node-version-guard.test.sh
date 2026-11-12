@@ -1,28 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "$0")/harness.sh"
 
-action_file="${1:-action.yml}"
-repo_root="$(cd "$(dirname "$action_file")" && pwd)"
-work_dir="$(mktemp -d)"
-trap 'rm -rf "$work_dir"' EXIT
-
-guard_script="$work_dir/guard.sh"
 stub_dir="$work_dir/stub"
-
-awk '
-  /^      id: run$/ { in_step = 1 }
-  in_step && /^      run: \|$/ { in_script = 1; next }
-  in_script && /^        / { sub(/^        /, ""); print; next }
-  in_script && /^[[:space:]]*$/ { print ""; next }
-  in_script { exit }
-' "$action_file" >"$guard_script"
-
-if [ ! -s "$guard_script" ]; then
-  echo "FAIL: could not extract the run step script from $action_file"
-  exit 1
-fi
-
-mkdir -p "$stub_dir"
+output="$work_dir/output.txt"
+write_exec_capturing_npm_stub "$stub_dir"
 real_node="$(command -v node)"
 cat >"$stub_dir/node" <<STUB
 #!/usr/bin/env bash
@@ -32,56 +14,27 @@ if [ "\$1" = "-p" ]; then
 fi
 exec "$real_node" "\$@"
 STUB
-cat >"$stub_dir/npm" <<'STUB'
-#!/usr/bin/env bash
-exit 0
-STUB
-chmod +x "$stub_dir/node" "$stub_dir/npm"
+chmod +x "$stub_dir/node"
 
-fixture_dir="$(cd "$repo_root/tests/fixtures/config-guard-present" && pwd)"
-
-run_guard() {
-  local node_version="$1"
-  local cli_version="$2"
-  local status=0
-  env PATH="$stub_dir:$PATH" \
-    STUB_NODE_VERSION="$node_version" \
-    GITHUB_ACTION_PATH="$repo_root" \
-    VERBATRA_VERSION="$cli_version" \
-    COMMAND="check" \
-    CONFIG_PATH="" \
-    WORKING_DIRECTORY="$fixture_dir" \
-    DRY_RUN="false" \
-    QA="false" \
-    QA_STRICT="false" \
-    REQUIRE_REVIEWED="false" \
-    SENSITIVE="false" \
-    LOCALES="" \
-    SUMMARY_FILE="$work_dir/summary.json" \
-    ERROR_FILE="$work_dir/error.txt" \
-    LOCALE_FILES_FILE="$work_dir/locale-files.json" \
-    GITHUB_OUTPUT="$work_dir/github-output.txt" \
-    bash --noprofile --norc -eo pipefail "$guard_script" >"$work_dir/output.txt" 2>&1 || status=$?
-  return "$status"
-}
-
-failures=0
+fixture_dir="$(fixture_path config-guard-present)"
 
 expect_guard() {
   local verdict="$1" cli_version="$2" node_version="$3"
-  if run_guard "$node_version" "$cli_version"; then
+  if run_step "$output" \
+    PATH="$stub_dir:$PATH" \
+    STUB_NODE_VERSION="$node_version" \
+    VERBATRA_VERSION="$cli_version" \
+    COMMAND="check" \
+    WORKING_DIRECTORY="$fixture_dir"; then
     if [ "$verdict" = "reject" ]; then
-      echo "FAIL: CLI $cli_version with Node.js $node_version was accepted, but is outside the supported range"
-      failures=1
+      fail "CLI $cli_version with Node.js $node_version was accepted, but is outside the supported range"
     fi
   elif [ "$verdict" = "accept" ]; then
-    echo "FAIL: CLI $cli_version with Node.js $node_version was rejected, but is supported"
-    cat "$work_dir/output.txt"
-    failures=1
-  elif ! grep -q 'the node-version input resolved to' "$work_dir/output.txt"; then
-    echo "FAIL: CLI $cli_version with Node.js $node_version was rejected, but not by the node-version guard"
-    cat "$work_dir/output.txt"
-    failures=1
+    fail "CLI $cli_version with Node.js $node_version was rejected, but is supported"
+    cat "$output"
+  elif ! grep -q 'the node-version input resolved to' "$output"; then
+    fail "CLI $cli_version with Node.js $node_version was rejected, but not by the node-version guard"
+    cat "$output"
   fi
 }
 
@@ -112,8 +65,4 @@ for cli_version in 0.9.3 0.11.1; do
   done
 done
 
-if [ "$failures" -ne 0 ]; then
-  exit 1
-fi
-
-echo "OK: the node-version guard follows the CLI engines range of the pinned version"
+finish "the node-version guard follows the CLI engines range of the pinned version"
