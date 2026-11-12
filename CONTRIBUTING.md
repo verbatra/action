@@ -191,6 +191,21 @@ floating `version`, a `version` below the minimum the action supports, a
 `src/run.sh`, add the matching rejection step and its assertion to `ci.yml`, and
 a case in `tests/shell/`.
 
+Four smaller workflows keep issues and pull requests labelled. None of them
+checks out or runs code from a pull request:
+
+- `pr-labels.yml` runs on `pull_request_target`, adds `scope:` labels from the
+  changed paths in `.github/labeler.yml`, and adds a `type:` label (plus
+  `breaking change` for a `!`) from the Conventional Commit title.
+- `issue-triage.yml` posts a fixed request when `needs reproduction` or
+  `needs info` is added, removes `needs triage` when an issue closes, and puts an
+  issue back into `needs triage` when its author replies.
+- `stale.yml` runs daily and touches only issues labelled `needs reproduction`
+  or `needs info`: `stale` after 14 quiet days, closed as not planned 7 days
+  later.
+- `welcome.yml` posts one fixed message on a first issue and one on a first pull
+  request.
+
 Every `uses:` reference in this repository is pinned to a full 40-character
 commit SHA with the human-readable version in a trailing comment. Keep it that
 way; Dependabot proposes the bumps.
@@ -261,3 +276,42 @@ character.
 
 A maintainer will review your pull request. Please be responsive to feedback, and
 hold to the standards in the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Triage
+
+Every issue form applies `needs triage`, and the `PR labels` workflow labels each
+pull request by its changed paths and its Conventional Commit title.
+
+Labels come in groups, the same here as in verbatra/verbatra and verbatra/skills,
+so a transferred issue keeps them: `type:` says what kind of work it is, `scope:`
+which area it touches, `status:` where it stands, and `resolution:` why it was
+closed. `needs reproduction` and `needs info` start a timer that closes the issue
+after 21 quiet days. The full list with descriptions is on the
+[labels page](https://github.com/verbatra/action/labels); the main repository's
+`scripts/sync-labels.sh verbatra/action` keeps it in step.
+
+When an issue arrives, or once a day from the `label:"needs triage"` filter:
+
+1. A security problem reported in public: hide it, ask for a private advisory,
+   and open a draft advisory yourself.
+2. A question, or a problem with the CLI or the translation engine: transfer it
+   to [verbatra/verbatra](https://github.com/verbatra/verbatra), where a
+   question becomes a Discussion in Q&A.
+3. A duplicate: link the original and close it as a duplicate with
+   `resolution: duplicate`.
+4. Check the `scope:` label (the forms set `scope: action`).
+5. A bug: try to reproduce it from the form. If you cannot, add
+   `needs reproduction` (the `Issue triage` workflow asks for one and the `Stale`
+   timer starts). If the action reference or the workflow snippet is missing,
+   first comment what is missing, then add `needs info`: the bot's message
+   points at that comment. When the reporter replies, the issue goes back to
+   `needs triage` on its own.
+6. Reproduced or accepted: add `status: accepted`, plus `good first issue` or
+   `help wanted` if it suits someone else.
+7. Not doing it: add `resolution: wontfix` and close it as not planned with one
+   sentence saying why.
+8. Remove `needs triage`. The filter should be empty at the end.
+
+For a pull request: check the labels the workflow set, approve the first
+workflow run of a first-time contributor only after reading the diff, and
+confirm the `CHANGELOG.md` bullet.

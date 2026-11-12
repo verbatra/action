@@ -1,7 +1,7 @@
 name: Bug report
 description: Report a problem with the verbatra GitHub Action.
-title: "[Bug]: "
-labels: ["bug"]
+labels: ["type: bug", "scope: action", "needs triage"]
+type: Bug
 body:
   - type: markdown
     attributes:
@@ -16,6 +16,15 @@ body:
       placeholder: v1.2.0
     validations:
       required: true
+
+  - type: input
+    id: last-working-ref
+    attributes:
+      label: Last version that worked
+      description: If this worked with an earlier action reference, which one. Leave empty if it never worked or you have not tried.
+      placeholder: v1.1.0
+    validations:
+      required: false
 
   - type: input
     id: cli-version
@@ -82,6 +91,7 @@ body:
     id: repro
     attributes:
       label: Steps to reproduce
+      description: A link to a public repository whose workflow shows the problem, or your verbatra config, one source locale file, and the workflow step that runs the action. Without a reproduction the issue is labelled `needs reproduction` and closes after 21 days.
       value: |
         1.
         2.

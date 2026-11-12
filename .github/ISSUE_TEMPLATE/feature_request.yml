@@ -1,7 +1,7 @@
 name: Feature request
 description: Suggest an idea or improvement for the verbatra GitHub Action.
-title: "[Feature]: "
-labels: ["enhancement"]
+labels: ["type: feature", "scope: action", "needs triage"]
+type: Feature
 body:
   - type: markdown
     attributes:
