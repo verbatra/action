@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { END_MARKER, START_MARKER } from "./usage-block.mjs";
+import { END_MARKER, START_MARKER } from "../scripts/usage-block.mjs";
 
-const scriptUrl = new URL("./generate-usage.mjs", import.meta.url);
+const scriptUrl = new URL("../scripts/generate-usage.mjs", import.meta.url);
 const scriptPath = fileURLToPath(scriptUrl);
 
 const ACTION = [

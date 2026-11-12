@@ -28,7 +28,7 @@ fi
 annotations="$work_dir/annotations.txt"
 report_status=0
 GITHUB_STEP_SUMMARY="$work_dir/step-summary.md" \
-  node "$repo_root/annotate.mjs" "$work_dir/summary.json" "$work_dir/error.txt" "$status" check >"$annotations" || report_status=$?
+  node "$repo_root/src/annotate.mjs" "$work_dir/summary.json" "$work_dir/error.txt" "$status" check >"$annotations" || report_status=$?
 
 if [ "$report_status" -ne 1 ]; then
   echo "FAIL: the report exited $report_status, expected 1"

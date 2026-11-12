@@ -70,7 +70,7 @@ command_output="$(grep '^command=' "$github_output" | tail -1 | cut -d= -f2- || 
 
 status2=0
 env GITHUB_STEP_SUMMARY="$stage2_summary_file" \
-  node "$repo_root/annotate.mjs" "$summary_file" "$error_file" "$exit_code_output" "$command_output" \
+  node "$repo_root/src/annotate.mjs" "$summary_file" "$error_file" "$exit_code_output" "$command_output" \
   >"$annotations" 2>"$annotate_stderr" || status2=$?
 
 if [ "$status2" -eq 0 ]; then

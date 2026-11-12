@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const scriptUrl = new URL("./resolve-config.mjs", import.meta.url);
+const scriptUrl = new URL("../src/resolve-config.mjs", import.meta.url);
 const scriptPath = fileURLToPath(scriptUrl);
 
 function packageJsonWithProperty() {

@@ -240,7 +240,7 @@ runs:
             fail_before_install "the config-path input '$CONFIG_PATH' resolved to '$resolved_config', which does not exist. config-path and working-directory both control this resolution: a relative config-path resolves against working-directory."
           fi
         else
-          resolved_config="$(node "$GITHUB_ACTION_PATH/resolve-config.mjs" "$install_dir" 2>"$ERROR_FILE")"
+          resolved_config="$(node "$GITHUB_ACTION_PATH/src/resolve-config.mjs" "$install_dir" 2>"$ERROR_FILE")"
           if [ $? -ne 0 ]; then
             fail_before_install "no recognized verbatra config file was found directly inside '$install_dir', which is resolved from the working-directory input. Add a config file there, or set config-path explicitly."
           fi
@@ -263,7 +263,7 @@ runs:
         if [ -n "$LOCALES" ]; then args+=(--locales "$LOCALES"); fi
         npm exec --no --prefix "$scratch_dir" -- verbatra "${args[@]}" >"$SUMMARY_FILE" 2>"$ERROR_FILE"
         echo "exit_code=$?" >>"$GITHUB_OUTPUT"
-        node "$GITHUB_ACTION_PATH/locale-files.mjs" "$scratch_dir" "$install_dir" "$resolved_config" "$LOCALE_FILES_FILE" >/dev/null 2>&1
+        node "$GITHUB_ACTION_PATH/src/locale-files.mjs" "$scratch_dir" "$install_dir" "$resolved_config" "$LOCALE_FILES_FILE" >/dev/null 2>&1
         exit 0
 
     - name: Annotate and summarize
@@ -276,4 +276,4 @@ runs:
         COMMAND: ${{ steps.run.outputs.command }}
         LOCALE_FILES_FILE: ${{ steps.run.outputs.locale_files_file }}
         QA_STRICT: ${{ inputs.qa-strict }}
-      run: node "$GITHUB_ACTION_PATH/annotate.mjs" "$SUMMARY_FILE" "$ERROR_FILE" "$EXIT_CODE" "$COMMAND" "$LOCALE_FILES_FILE"
+      run: node "$GITHUB_ACTION_PATH/src/annotate.mjs" "$SUMMARY_FILE" "$ERROR_FILE" "$EXIT_CODE" "$COMMAND" "$LOCALE_FILES_FILE"

@@ -28,13 +28,13 @@ if [ ! -s "$guard_script" ]; then
   exit 1
 fi
 
-mkdir -p "$stub_action_dir" "$stub_bin_dir"
+mkdir -p "$stub_action_dir/src" "$stub_bin_dir"
 
 # Stub resolve-config.mjs to always fail with its own stderr, simulating an
 # unanticipated exception independent of resolve-config.mjs's own try/catch,
 # and assert the guard's ERROR_FILE redirect never lets that content survive.
 leak_marker="STUB-RESOLVE-CONFIG-STDERR-LEAK-$$"
-cat >"$stub_action_dir/resolve-config.mjs" <<STUB
+cat >"$stub_action_dir/src/resolve-config.mjs" <<STUB
 #!/usr/bin/env node
 import { writeFileSync } from "node:fs";
 writeFileSync("$stub_marker", "invoked\n");

@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const repoFile = (name) => readFileSync(new URL(`./${name}`, import.meta.url), "utf8");
+const repoFile = (name) => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
 
 const latestReleasedVersion = repoFile("CHANGELOG.md").match(/^## \[(\d+\.\d+\.\d+)\]/m)?.[1];
 const shaPin = repoFile("README.md").match(
