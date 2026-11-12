@@ -261,7 +261,7 @@ jobs:
       - name: Assert the not-inherited config failure names the resolved child directory, not the parent's
         run: |
           child_dir="$(cd tests/fixtures/config-guard-not-inherited/child && pwd)"
-          error_file="${{ runner.temp }}/verbatra-error.txt"
+          error_file="$RUNNER_TEMP/verbatra-error.txt"
           if ! grep -qF "$child_dir" "$error_file"; then
             echo "::error::the config guard's failure message did not name the resolved child directory '$child_dir'; check that install_dir is computed from the resolved working-directory, not inherited from the parent"
             cat "$error_file"
