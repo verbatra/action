@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { END_MARKER, renderUsageBlock, replaceUsageRegion, START_MARKER } from "./usage-block.mjs";
+import { END_MARKER, renderUsageBlock, replaceUsageRegion, START_MARKER } from "../scripts/usage-block.mjs";
 
-const repoFile = (name) => readFileSync(new URL(`./${name}`, import.meta.url), "utf8");
+const repoFile = (name) => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
 
 function actionYaml(inputs) {
   return `name: probe\ninputs:\n${inputs}\nruns:\n  using: composite\n  steps: []\n`;

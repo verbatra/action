@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# shellcheck source=SCRIPTDIR/harness.sh
+source "$(dirname "$0")/harness.sh"
+
+annotations="$work_dir/annotations.txt"
+forged_version=$'9.9.9-forged\n::stop-commands::forged'
+
+if [ "$(printf '%s' "$forged_version" | wc -l | tr -d ' ')" != "1" ]; then
+  echo "FAIL: the payload is not multi-line, so it cannot exercise the command-forging vector"
+  exit 1
+fi
+
+if run_step "$annotations" VERBATRA_VERSION="$forged_version"; then
+  fail "the guard accepted a version input carrying a forged workflow command"
+fi
+
+if ! grep -q 'the version input must be an exact semver version' "$annotations"; then
+  fail "the annotation is not the version guard's, so a later guard now fires first and this harness no longer exercises the version guard"
+fi
+
+if grep -q 'forged' "$annotations"; then
+  fail "the guard annotation echoes the rejected version value, so a newline inside that value forges a second workflow command"
+fi
+
+command_count="$(awk '/^::/ { n++ } END { print n + 0 }' "$annotations")"
+if [ "$command_count" != "1" ]; then
+  fail "the guard emitted $command_count workflow commands, expected exactly 1"
+fi
+
+if [ "$failures" -ne 0 ]; then
+  echo "--- captured annotation output ---"
+  cat "$annotations"
+fi
+
+finish "the version guard rejected the forged input and its annotation omits the rejected value"

@@ -8,7 +8,7 @@ import {
   parseSummaryJson,
   resolveExitCode,
   WIRING_FAILURE_EXIT_CODE,
-} from "./report.mjs";
+} from "../src/report.mjs";
 
 function locale(over = {}) {
   return {

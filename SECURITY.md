@@ -12,8 +12,9 @@ Do not open a public issue or pull request for a security vulnerability.
 We aim to acknowledge a report within five business days, and we will keep you
 informed as we investigate and work on a fix.
 
-Report here if the issue is in this repository: `action.yml`, the annotation and
-job-summary scripts, or the workflows. If the issue is in the translation engine
+Report here if the issue is in this repository: `action.yml`, the scripts under
+`src/` it runs (input guards, config lookup, annotations, and the job summary), or
+the workflows. If the issue is in the translation engine
 itself, in `@verbatra/cli`, `@verbatra/sdk`, or `@verbatra/studio`, report it
 against the main project instead
 (https://github.com/verbatra/verbatra/security/advisories/new), because that

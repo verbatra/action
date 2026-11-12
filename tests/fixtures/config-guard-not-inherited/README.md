@@ -1,6 +1,6 @@
 # Config-guard-not-inherited self-test fixture
 
-Proves two things about the pre-flight config guard added to `action.yml`:
+Proves two things about the pre-flight config guard in `src/run.sh`:
 "strict, not inherited" (config discovery never walks up into a parent
 directory), and the fail-fast behavior when no config exists at the resolved
 `working-directory`.

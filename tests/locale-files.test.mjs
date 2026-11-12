@@ -5,7 +5,7 @@ import { join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const scriptUrl = new URL("./locale-files.mjs", import.meta.url);
+const scriptUrl = new URL("../src/locale-files.mjs", import.meta.url);
 const scriptPath = fileURLToPath(scriptUrl);
 
 let workDir;

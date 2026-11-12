@@ -20,8 +20,9 @@
   "scripts": {
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "docs:usage": "node generate-usage.mjs",
-    "docs:usage:check": "node generate-usage.mjs --check"
+    "test:shell": "bash tests/shell/run-all.sh",
+    "docs:usage": "node scripts/generate-usage.mjs",
+    "docs:usage:check": "node scripts/generate-usage.mjs --check"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "5.1.0",
