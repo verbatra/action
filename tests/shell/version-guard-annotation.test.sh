@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=SCRIPTDIR/harness.sh
 source "$(dirname "$0")/harness.sh"
 
 annotations="$work_dir/annotations.txt"

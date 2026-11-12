@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=SCRIPTDIR/harness.sh
 source "$(dirname "$0")/harness.sh"
 
 stub_action_dir="$work_dir/stub-action"
