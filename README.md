@@ -47,6 +47,25 @@ jobs:
 
 `v1` is the moving tag that tracks the latest release; see [Versioning](#versioning) for an immutable pin. See [Configuration](https://verbatra.kreitz-webdev.de/docs/config-file) and [Providers](https://verbatra.kreitz-webdev.de/docs/providers) for the full reference.
 
+## Choosing a command
+
+The `command` input selects which CLI command runs. All three report through the same annotations and job summary.
+
+| Command | Writes files | Needs an API key | Fails the step when |
+| --- | --- | --- | --- |
+| `translate` (default) | yes | yes | a locale fails, or is written only partially because keys were withheld |
+| `translate` with provider `none` | only translation-memory hits | no | as `translate`; keys left for a person pass the step with a warning (exit 3) |
+| `translate` with `dry-run: "true"` | no | no | translation could not be planned |
+| `check` | no | no | any locale has missing or stale keys |
+| `check` with `qa: "true"` | no | no | a locale is out of date, or a committed translation fails the quality check |
+| `check` with `require-reviewed: "true"` | no | no | a locale is out of date, or a machine-written translation is not approved |
+| `check` with `sensitive: "true"` | no | no | a locale is out of date, or the source or glossary holds sensitive content |
+| `diff` | no | no | any locale has pending changes |
+
+- Use **`check`** as a pull-request gate: the smallest, fastest signal, with per-locale counts of missing, stale, and up-to-date keys.
+- Use **`diff`** for the same gate when a reviewer needs to see *which* keys are pending. It lists key names per locale, split into missing and changed, and calls out orphaned keys (in a target locale but no longer in the source) separately; those never fail the step on their own.
+- Use **`translate --dry-run`** to preview a real run in translate's own terms (translated, unchanged, integrity-withheld, and provider-failure counts) without writing anything.
+
 ## Examples
 
 The snippets below show the action step; wrap them in a workflow like the one above.
@@ -195,24 +214,6 @@ jobs:
           title: "chore(i18n): update translations"
           body: "Translations updated by the verbatra action."
 ```
-
-## Choosing a command
-
-The `command` input selects which CLI command runs. All three report through the same annotations and job summary.
-
-| Command | Writes files | Needs an API key | Fails the step when |
-| --- | --- | --- | --- |
-| `translate` (default) | yes | yes | a locale fails, or is written only partially because keys were withheld |
-| `translate` with provider `none` | only translation-memory hits | no | as `translate`; keys left for a person pass the step with a warning (exit 3) |
-| `translate` with `dry-run: "true"` | no | no | translation could not be planned |
-| `check` | no | no | any locale has missing or stale keys |
-| `check` with `qa: "true"` | no | no | a locale is out of date, or a committed translation fails the quality check |
-| `check` with `require-reviewed: "true"` | no | no | a locale is out of date, or a machine-written translation is not approved |
-| `diff` | no | no | any locale has pending changes |
-
-- Use **`check`** as a pull-request gate: the smallest, fastest signal, with per-locale counts of missing, stale, and up-to-date keys.
-- Use **`diff`** for the same gate when a reviewer needs to see *which* keys are pending. It lists key names per locale, split into missing and changed, and calls out orphaned keys (in a target locale but no longer in the source) separately; those never fail the step on their own.
-- Use **`translate --dry-run`** to preview a real run in translate's own terms (translated, unchanged, integrity-withheld, and provider-failure counts) without writing anything.
 
 ## Inputs
 
@@ -397,7 +398,7 @@ API keys are read only from the environment and never accepted as an input; ever
 
 ## Contributing
 
-Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md) first. Issues about translation behavior, formats, providers, or the CLI belong in the [main repository](https://github.com/verbatra/verbatra/issues); issues about this action's inputs, annotations, or job summary belong [here](https://github.com/verbatra/action/issues). Run `npm ci && npm test` before opening a pull request.
+Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md) first. Issues about translation behavior, formats, providers, or the CLI belong in the [main repository](https://github.com/verbatra/verbatra/issues); issues about this action's inputs, annotations, or job summary belong [here](https://github.com/verbatra/action/issues). Run `npm ci && npm test && npm run test:shell` before opening a pull request.
 
 ## License
 

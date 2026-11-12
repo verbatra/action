@@ -3,7 +3,7 @@
 A minimal, in-sync verbatra project with a recognized config file
 (`.verbatrarc.json`) directly inside its own root. Used only by the
 `self-test` job in `.github/workflows/ci.yml`, wired as `working-directory`
-against the pre-flight config guard added in `action.yml`.
+against the pre-flight config guard in `src/run.sh`.
 
 This is the positive case for that guard: a project that is correctly
 configured must still pass, so the step is wired to succeed rather than

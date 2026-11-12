@@ -2,7 +2,8 @@
 
 Thanks for your interest in contributing. This repository holds the composite
 GitHub Action that runs the verbatra CLI in CI. It is a small repository on
-purpose: `action.yml`, a few plain ESM scripts, their tests, and the workflows.
+purpose: `action.yml`, one bash script and a few plain ESM scripts it calls,
+their tests, and the workflows.
 
 The translation engine itself lives in the
 [main verbatra repository](https://github.com/verbatra/verbatra). Read
@@ -41,10 +42,50 @@ npm ci
 Use `npm ci` rather than `npm install` so the lockfile stays authoritative. CI
 installs the same way.
 
+## Repository layout
+
+```
+action.yml            the action metadata; stays at the root so `uses: verbatra/action@v1` resolves
+src/                  everything the action runs on a consumer's runner, with no build step
+  run.sh              the "Run verbatra" step: input guards, config lookup, CLI install and run
+  resolve-config.mjs  finds the config file directly inside working-directory
+  locale-files.mjs    maps each locale to its file for annotation file= links
+  annotate.mjs        the "Annotate and summarize" step: reads the captured output, writes results
+  report.mjs          pure logic behind annotate.mjs: annotations, job summary, exit status
+scripts/              maintainer tooling, never run by the action
+  generate-usage.mjs  regenerates the README input reference from action.yml
+  usage-block.mjs     renders that reference
+tests/                Vitest unit tests (*.test.mjs) for src/ and scripts/
+  shell/              bash tests (*.test.sh) that run src/run.sh with stubbed npm and node
+  fixtures/           small verbatra projects the shell tests and the CI self-test run against
+```
+
+The layout follows what established actions do. `action.yml`, the README, the
+license and the changelog sit at the root. Code that runs for consumers lives in
+one directory (`src/` here; `dist/` in JavaScript actions that compile), and
+`action.yml` reaches it through `$GITHUB_ACTION_PATH`, never through a path
+relative to the consumer's workspace. Maintainer tooling (`scripts/`) and tests
+with their fixtures (`tests/`) are kept apart from it, so it is clear which
+files a release ships to runners.
+
+Shell logic longer than a few lines does not stay inline in `action.yml`. It
+lives in `src/run.sh`, which `action.yml` calls as
+`bash "$GITHUB_ACTION_PATH/src/run.sh"`, with every input passed through the
+step's `env:` block rather than a `${{ }}` expression in the script. The script
+sets `-eo pipefail` itself, matching the options GitHub uses for an inline
+`shell: bash` step, and stays compatible with bash 3.2.
+
+Everything under `src/` must be committed: the action installs no dependencies
+of its own, so `src/` imports only Node.js built-ins. The one package it loads,
+`@verbatra/sdk` in `src/locale-files.mjs`, comes from the CLI install the run
+step creates.
+
 ## Commands
 
 - `npm test` - run the Vitest suite with coverage
 - `npm run test:watch` - the same suite in watch mode
+- `npm run test:shell` - run every `tests/shell/*.test.sh`; `sensitive-report.test.sh`
+  installs `@verbatra/cli` from npm unless `VERBATRA_CLI` points at a built CLI
 - `npm run docs:usage` - regenerate the README input reference from `action.yml`
 - `npm run docs:usage:check` - fail when the README input reference is out of date
 
@@ -52,7 +93,7 @@ installs the same way.
 
 The commented-YAML block between the `<!-- start usage -->` and
 `<!-- end usage -->` markers in `README.md` is generated from `action.yml` by
-`generate-usage.mjs`, with the rendering in `usage-block.mjs`. It lists every
+`scripts/generate-usage.mjs`, with the rendering in `scripts/usage-block.mjs`. It lists every
 input in declaration order with its description, its `# Default:` line, and its
 rendered default, and nothing outside the markers is touched. Never edit the
 block by hand: change `action.yml` and run `npm run docs:usage`. CI runs
@@ -65,22 +106,22 @@ required inputs.
 
 ## Tests and coverage
 
-Tests use Vitest and live next to the code as `*.test.mjs` files. Coverage is
-collected with the v8 provider and enforced at 90% on lines, functions,
+Unit tests use Vitest and live in `tests/` as `*.test.mjs` files. Coverage of
+`src/` and `scripts/` is collected with the v8 provider and enforced at 90% on lines, functions,
 statements, and branches, the same thresholds the main repository uses. New
 behavior ships with tests and must keep coverage at or above that threshold.
 
-`report.mjs` is the pure core: it turns the CLI's `--json` output and exit code
+`src/report.mjs` is the pure core: it turns the CLI's `--json` output and exit code
 into annotations, the job-summary markdown, and the exit status, with no I/O at
-all. Put logic there and test it directly. `annotate.mjs` is the thin I/O shell
-that reads the captured files and writes the results; keep it thin.
-`resolve-config.mjs` locates the verbatra config file directly inside a given
+all. Put logic there and test it directly. `src/annotate.mjs` is the thin I/O
+shell that reads the captured files and writes the results; keep it thin.
+`src/resolve-config.mjs` locates the verbatra config file directly inside a given
 directory, following the same recognized-filename precedence the CLI's own
-config search uses; it is invoked once from the `id: run` step, before
+config search uses; `src/run.sh` invokes it once, before
 `npm install`, so the guard can pass an explicit, already-verified `--config`
 path to the CLI.
 
-`locale-files.mjs` runs after the CLI and writes the locale-to-file mapping
+`src/locale-files.mjs` runs after the CLI and writes the locale-to-file mapping
 `annotate.mjs` reads: it loads the config through the installed `@verbatra/sdk`
 and its locale path resolver, and writes an empty mapping when either is
 missing or resolving takes longer than 10 seconds, so annotations then simply
@@ -88,7 +129,7 @@ carry no `file=`. It always ends with `process.exit(0)`, so a config that leaves
 a timer or socket open cannot hold the step.
 
 The recognized config filenames and their precedence order in
-`resolve-config.mjs` (`SEARCH_PLACES`) are a point-in-time copy of
+`src/resolve-config.mjs` (`SEARCH_PLACES`) are a point-in-time copy of
 `SEARCH_PLACES` in
 [`packages/sdk/src/config/load-config.ts`](https://github.com/verbatra/verbatra/blob/main/packages/sdk/src/config/load-config.ts)
 in the main `verbatra/verbatra` repository, which is the source of truth for
@@ -101,18 +142,30 @@ workflow command is percent-encoded, and anything placed into the job summary is
 escaped for markdown. If you add a new interpolation into either, escape it and
 cover it with a hostile-input test.
 
+`tests/shell/` tests `src/run.sh` directly: each test sources
+`tests/shell/harness.sh`, whose `run_step` runs the script with every input at
+its `action.yml` default plus the overrides a case sets, and with `npm` (and, for
+the Node.js guard, `node`) replaced by stubs that record their arguments. The
+guards there exist because inputs are untrusted: a rejected value is never echoed
+into a workflow command, so a newline inside it cannot forge a second one. Keep
+those tests whenever you touch a guard, and add one for a new guard.
+`tests/action-layout.test.mjs` fails when `action.yml` stops calling
+`src/run.sh`, when the step's `env:` block and the variables the script reads
+drift apart, or when `ci.yml` names a fixture or shell test that does not exist
+or skips one that does.
+
 ## Workflows
 
-`.github/workflows/ci.yml` runs the unit tests on both matrix Node versions and
+`.github/workflows/ci.yml` runs the unit tests on Node.js 22.22.0, 24 and 26 and
 self-tests the composite action by running `uses: ./` against the fixtures in
-`.github/fixtures`. No step there needs an API key, because a dry run and the
+`tests/fixtures`, then runs each shell test. No step there needs an API key, because a dry run and the
 read-only commands never construct a provider, so the whole job runs on a fork
 pull request.
 
-- `.github/fixtures/dry-run` has an empty `de.json`, so it is the drifted project:
+- `tests/fixtures/dry-run` has an empty `de.json`, so it is the drifted project:
   `translate --dry-run` has real work to describe, and `check` and `diff` must fail
   the step against it.
-- `.github/fixtures/in-sync` has every source key translated, so `check` and `diff`
+- `tests/fixtures/in-sync` has every source key translated, so `check` and `diff`
   must pass the gate against it. It is what stops a renderer that fails
   unconditionally from looking correct.
 - The remaining fixtures each pin one regression: a `verbatra.config.ts`
@@ -135,7 +188,8 @@ a `node-version` that resolves outside the CLI's Node.js range, a
 floating `version`, a `version` below the minimum the action supports, a
 `version` whose second line forges a workflow command, and a
 `working-directory` with no recognized verbatra config file directly inside it. If you add a guard to
-`action.yml`, add the matching rejection step and its assertion.
+`src/run.sh`, add the matching rejection step and its assertion to `ci.yml`, and
+a case in `tests/shell/`.
 
 Every `uses:` reference in this repository is pinned to a full 40-character
 commit SHA with the human-readable version in a trailing comment. Keep it that
@@ -165,7 +219,7 @@ To release:
 4. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and add
    a fresh empty `## [Unreleased]` above it.
 5. Update the README "What's new" paragraph in the same pull request.
-6. Run `npm ci && npm test` and open a pull request with these changes; merge it
+6. Run `npm ci && npm test && npm run test:shell` and open a pull request with these changes; merge it
    once CI is green.
 7. Tag the merge commit `vX.Y.Z` and push the tag.
 8. Create the GitHub release for `vX.Y.Z`, with notes taken from the `CHANGELOG.md`
@@ -174,7 +228,7 @@ To release:
    receive it.
 10. Open a follow-up pull request that updates the full-SHA example under
     "Versioning" in the README to the new release commit with a `# vX.Y.Z` comment,
-    since the SHA exists only once the tag does. `release-docs.test.mjs` checks that
+    since the SHA exists only once the tag does. `tests/release-docs.test.mjs` checks that
     the SHA equals the commit of the tag named in its comment, so the example may
     lag one release but never name a wrong commit. CI fetches full history so that
     check runs there; it is skipped only in a local clone without the tag.
@@ -194,8 +248,8 @@ character.
 
 1. Branch from `main`.
 2. Make your change with tests, and keep it focused.
-3. Run `npm ci && npm test` locally and make sure it passes.
-4. If you changed `action.yml`, say how you exercised it; the self-test job in CI
+3. Run `npm ci && npm test && npm run test:shell` locally and make sure both pass.
+4. If you changed `action.yml` or `src/run.sh`, say how you exercised it; the self-test job in CI
    covers all three commands and every input guard, but not every combination of
    `config-path`, `working-directory`, and `node-version`.
 5. If you changed an input in `action.yml`, run `npm run docs:usage` and commit
