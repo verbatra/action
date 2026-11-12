@@ -39,7 +39,7 @@ exit 0
 STUB
 chmod +x "$stub_dir/npm"
 
-fixture_dir="$(cd "$repo_root/.github/fixtures/config-guard-present" && pwd)"
+fixture_dir="$(cd "$repo_root/tests/fixtures/config-guard-present" && pwd)"
 expected_config="$fixture_dir/.verbatrarc.json"
 
 status=0

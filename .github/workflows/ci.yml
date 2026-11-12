@@ -58,7 +58,7 @@ jobs:
         uses: ./
         with:
           version: 0.9.3
-          working-directory: .github/fixtures/dry-run
+          working-directory: tests/fixtures/dry-run
           dry-run: "true"
 
       - name: Run check against the in-sync fixture, which must pass the gate
@@ -66,49 +66,49 @@ jobs:
         with:
           version: 0.9.3
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
 
       - name: Run diff against the in-sync fixture, which must pass the gate
         uses: ./
         with:
           version: 0.9.3
           command: diff
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
 
       - name: Run check against the ts-config fixture, which must pass the gate
         uses: ./
         with:
           version: 0.9.3
           command: check
-          working-directory: .github/fixtures/ts-config
+          working-directory: tests/fixtures/ts-config
 
       - name: Run check against the ts-config-sdk-import fixture, which must pass the gate
         uses: ./
         with:
           version: 0.9.3
           command: check
-          working-directory: .github/fixtures/ts-config-sdk-import
+          working-directory: tests/fixtures/ts-config-sdk-import
 
       - name: Run check against the pnpm-workspace-protocols fixture, which must pass the gate
         uses: ./
         with:
           version: 0.9.3
           command: check
-          working-directory: .github/fixtures/pnpm-workspace-protocols
+          working-directory: tests/fixtures/pnpm-workspace-protocols
 
       - name: Run check against the preserves-consumer-deps fixture, which must pass the gate
         uses: ./
         with:
           version: 0.9.3
           command: check
-          working-directory: .github/fixtures/preserves-consumer-deps
+          working-directory: tests/fixtures/preserves-consumer-deps
 
       - name: Run check with qa against the in-sync fixture, which must pass the gate
         uses: ./
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           qa: "true"
 
       - name: Run check without qa against the placeholder-dropped fixture, which must pass the gate
@@ -116,7 +116,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/qa-placeholder-dropped
+          working-directory: tests/fixtures/qa-placeholder-dropped
 
       - name: Run check with qa against the placeholder-dropped fixture, which must fail the step
         id: qa-placeholder-dropped
@@ -125,7 +125,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/qa-placeholder-dropped
+          working-directory: tests/fixtures/qa-placeholder-dropped
           qa: "true"
 
       - name: Assert check with qa failed on a committed translation that drops a placeholder
@@ -139,7 +139,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/review-unapproved
+          working-directory: tests/fixtures/review-unapproved
 
       - name: Run check with require-reviewed against the unapproved fixture, which must fail the step
         id: review-unapproved
@@ -148,7 +148,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/review-unapproved
+          working-directory: tests/fixtures/review-unapproved
           require-reviewed: "true"
 
       - name: Assert check with require-reviewed failed on an unapproved machine-written value
@@ -162,7 +162,7 @@ jobs:
         uses: ./
         with:
           version: 0.12.0
-          working-directory: .github/fixtures/human-only
+          working-directory: tests/fixtures/human-only
 
       - name: Assert the human-only run set the needs-human output
         if: steps.human-only.outputs.needs-human != 'true'
@@ -175,7 +175,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           sensitive: "true"
 
       - name: Run check without sensitive against the sensitive-source fixture, which must pass the gate
@@ -183,7 +183,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/sensitive-source
+          working-directory: tests/fixtures/sensitive-source
 
       - name: Run check with sensitive against the sensitive-source fixture, which must fail the step
         id: sensitive-source
@@ -192,7 +192,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/sensitive-source
+          working-directory: tests/fixtures/sensitive-source
           sensitive: "true"
 
       - name: Assert check with sensitive failed on a source holding an email address
@@ -208,7 +208,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/locales-subset
+          working-directory: tests/fixtures/locales-subset
 
       - name: Assert check without locales failed on the drifted fr locale
         if: steps.locales-all.outcome != 'failure'
@@ -221,18 +221,18 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/locales-subset
+          working-directory: tests/fixtures/locales-subset
           locales: "de"
 
       - name: Assert the action never wrote anything into the consumer's own node_modules
         run: |
-          if ! git diff --exit-code HEAD -- .github/fixtures/preserves-consumer-deps/node_modules/zod .github/fixtures/preserves-consumer-deps/node_modules/debug; then
+          if ! git diff --exit-code HEAD -- tests/fixtures/preserves-consumer-deps/node_modules/zod tests/fixtures/preserves-consumer-deps/node_modules/debug; then
             echo "::error::the action modified a tracked file under the consumer's own node_modules/zod or node_modules/debug; this regresses the node_modules merge bug"
             exit 1
           fi
-          if [ -n "$(git status --porcelain -- .github/fixtures/preserves-consumer-deps/node_modules)" ]; then
+          if [ -n "$(git status --porcelain -- tests/fixtures/preserves-consumer-deps/node_modules)" ]; then
             echo "::error::the action added or removed an entry under the consumer's own node_modules; the run step must never write into the consumer's tree at all, symlinks included"
-            git status --porcelain -- .github/fixtures/preserves-consumer-deps/node_modules
+            git status --porcelain -- tests/fixtures/preserves-consumer-deps/node_modules
             exit 1
           fi
 
@@ -241,7 +241,7 @@ jobs:
         with:
           version: 0.9.3
           command: check
-          working-directory: .github/fixtures/config-guard-present
+          working-directory: tests/fixtures/config-guard-present
 
       - name: Run check against the config-guard-not-inherited fixture's subdirectory, which has no config of its own
         id: config-guard-nested
@@ -250,7 +250,7 @@ jobs:
         with:
           version: 0.9.3
           command: check
-          working-directory: .github/fixtures/config-guard-not-inherited/child
+          working-directory: tests/fixtures/config-guard-not-inherited/child
 
       - name: Assert the not-inherited config fixture failed the step
         if: steps.config-guard-nested.outcome != 'failure'
@@ -260,7 +260,7 @@ jobs:
 
       - name: Assert the not-inherited config failure names the resolved child directory, not the parent's
         run: |
-          child_dir="$(cd .github/fixtures/config-guard-not-inherited/child && pwd)"
+          child_dir="$(cd tests/fixtures/config-guard-not-inherited/child && pwd)"
           error_file="${{ runner.temp }}/verbatra-error.txt"
           if ! grep -qF "$child_dir" "$error_file"; then
             echo "::error::the config guard's failure message did not name the resolved child directory '$child_dir'; check that install_dir is computed from the resolved working-directory, not inherited from the parent"
@@ -275,7 +275,7 @@ jobs:
         with:
           version: 0.9.3
           command: check
-          working-directory: .github/fixtures/dry-run
+          working-directory: tests/fixtures/dry-run
 
       - name: Assert a drifted check failed the step
         if: steps.check-drifted.outcome != 'failure'
@@ -290,7 +290,7 @@ jobs:
         with:
           version: 0.9.3
           command: diff
-          working-directory: .github/fixtures/dry-run
+          working-directory: tests/fixtures/dry-run
 
       - name: Assert a pending diff failed the step
         if: steps.diff-pending.outcome != 'failure'
@@ -305,7 +305,7 @@ jobs:
         with:
           version: 0.9.3
           command: publish
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
 
       - name: Assert the unsupported command input was rejected
         if: steps.bad-command.outcome != 'failure'
@@ -320,7 +320,7 @@ jobs:
         with:
           version: 0.9.3
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           dry-run: "true"
 
       - name: Assert dry-run combined with check was rejected rather than silently ignored
@@ -335,7 +335,7 @@ jobs:
         uses: ./
         with:
           version: 0.12.0
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           dry-run: "yes"
 
       - name: Assert the non-boolean dry-run input was rejected rather than read as false
@@ -351,7 +351,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           qa: "TRUE"
 
       - name: Assert the non-boolean qa input was rejected rather than read as false
@@ -367,7 +367,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           qa-strict: "1"
 
       - name: Assert the non-boolean qa-strict input was rejected rather than read as false
@@ -382,7 +382,7 @@ jobs:
         uses: ./
         with:
           version: 0.12.0
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           dry-run: "true"
           qa: "true"
 
@@ -399,7 +399,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           qa-strict: "true"
 
       - name: Assert qa-strict without qa was rejected rather than silently ignored
@@ -415,7 +415,7 @@ jobs:
         with:
           version: 0.11.1
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           qa: "true"
 
       - name: Assert qa with a version below its minimum was rejected
@@ -431,7 +431,7 @@ jobs:
         with:
           version: 0.12.0-next.0
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           qa: "true"
 
       - name: Assert qa with a 0.12.0 prerelease was rejected, as semver ranks it below 0.12.0
@@ -447,7 +447,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           require-reviewed: "yes"
 
       - name: Assert the non-boolean require-reviewed input was rejected rather than read as false
@@ -463,7 +463,7 @@ jobs:
         with:
           version: 0.12.0
           command: diff
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           require-reviewed: "true"
 
       - name: Assert require-reviewed combined with diff was rejected
@@ -479,7 +479,7 @@ jobs:
         with:
           version: 0.11.1
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           require-reviewed: "true"
 
       - name: Assert require-reviewed with a version below its minimum was rejected
@@ -495,7 +495,7 @@ jobs:
         with:
           version: 0.12.0-next.0
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           require-reviewed: "true"
 
       - name: Assert require-reviewed with a 0.12.0 prerelease was rejected, as semver ranks it below 0.12.0
@@ -511,7 +511,7 @@ jobs:
         with:
           version: 0.11.1
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           sensitive: "true"
 
       - name: Assert sensitive with a version below its minimum was rejected
@@ -527,7 +527,7 @@ jobs:
         with:
           version: 0.12.0-next.0
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           sensitive: "true"
 
       - name: Assert sensitive with a 0.12.0 prerelease was rejected, as semver ranks it below 0.12.0
@@ -543,7 +543,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           locales: "de, fr"
 
       - name: Assert the malformed locales input was rejected
@@ -559,7 +559,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           node-version: "20"
 
       - name: Assert the node-version below the CLI's floor was rejected
@@ -575,7 +575,7 @@ jobs:
         with:
           version: 0.12.0
           command: check
-          working-directory: .github/fixtures/in-sync
+          working-directory: tests/fixtures/in-sync
           node-version: "23"
 
       - name: Assert the node-version on the unsupported 23 line was rejected
@@ -591,7 +591,7 @@ jobs:
         with:
           version: 0.9.1
           command: check
-          working-directory: .github/fixtures/ts-config
+          working-directory: tests/fixtures/ts-config
 
       - name: Assert the below-minimum version input was rejected
         if: steps.below-minimum.outcome != 'failure'
@@ -605,7 +605,7 @@ jobs:
         uses: ./
         with:
           version: latest
-          working-directory: .github/fixtures/dry-run
+          working-directory: tests/fixtures/dry-run
           dry-run: "true"
 
       - name: Assert the floating version input was rejected
@@ -629,7 +629,7 @@ jobs:
         uses: ./
         with:
           version: "9.9.9-forged\n::stop-commands::forged"
-          working-directory: .github/fixtures/dry-run
+          working-directory: tests/fixtures/dry-run
           dry-run: "true"
 
       - name: Assert the version input carrying a forged workflow command was rejected
@@ -639,31 +639,31 @@ jobs:
           exit 1
 
       - name: Assert the version-guard annotation omits the rejected value so a newline inside it cannot forge a second workflow command
-        run: bash ./assert-version-guard-annotation.sh
+        run: bash tests/shell/version-guard-annotation.test.sh
 
       - name: Assert the command-guard annotation omits the rejected value so a newline inside it cannot forge a second workflow command
-        run: bash ./assert-command-guard-annotation.sh
+        run: bash tests/shell/command-guard-annotation.test.sh
 
       - name: Assert the config guard passes the resolved config path to the CLI via --config
-        run: bash ./assert-config-guard-passthrough.sh
+        run: bash tests/shell/config-guard-passthrough.test.sh
 
       - name: Assert require-reviewed passes --require-reviewed to the CLI exactly when it is true
-        run: bash ./assert-require-reviewed-passthrough.sh
+        run: bash tests/shell/require-reviewed-passthrough.test.sh
 
       - name: Assert the node-version guard accepts only the Node.js range the CLI supports
-        run: bash ./assert-node-version-guard.sh
+        run: bash tests/shell/node-version-guard.test.sh
 
       - name: Assert sensitive and locales pass --sensitive and --locales to the CLI only when set
-        run: bash ./assert-sensitive-locales-passthrough.sh
+        run: bash tests/shell/sensitive-locales-passthrough.test.sh
 
       - name: Assert check sensitive findings are annotated and summarized without the matched text
-        run: bash ./assert-sensitive-report.sh
+        run: bash tests/shell/sensitive-report.test.sh
 
       - name: Assert an absolute config-path is used as-is, not re-resolved against working-directory
-        run: bash ./assert-config-guard-absolute-path.sh
+        run: bash tests/shell/config-guard-absolute-path.test.sh
 
       - name: Assert the config-path guard's failure is escaped so a newline inside it cannot forge a second workflow command
-        run: bash ./assert-config-guard-hostile-input.sh
+        run: bash tests/shell/config-guard-hostile-input.test.sh
 
       - name: Assert a resolve-config.mjs failure's raw stderr never reaches the step log or survives fail_before_install's overwrite of ERROR_FILE
-        run: bash ./assert-config-guard-stderr-overwritten.sh
+        run: bash tests/shell/config-guard-stderr-overwritten.test.sh

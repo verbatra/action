@@ -52,7 +52,7 @@ exit 0
 STUB
 chmod +x "$stub_bin_dir/npm"
 
-working_dir="$(cd "$repo_root/.github/fixtures/config-guard-present" && pwd)"
+working_dir="$(cd "$repo_root/tests/fixtures/config-guard-present" && pwd)"
 
 status=0
 env PATH="$stub_bin_dir:$PATH" \

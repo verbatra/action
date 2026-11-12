@@ -35,7 +35,7 @@ if [ "$(printf '%s' "$forged_config_path" | wc -l | tr -d ' ')" != "1" ]; then
   exit 1
 fi
 
-working_directory="$repo_root/.github/fixtures/config-guard-present"
+working_directory="$repo_root/tests/fixtures/config-guard-present"
 
 status=0
 env VERBATRA_VERSION="0.9.3" \

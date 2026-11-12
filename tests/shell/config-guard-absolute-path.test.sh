@@ -45,12 +45,12 @@ STUB
   chmod +x "$stub_dir/npm"
 }
 
-config_fixture_dir="$(cd "$repo_root/.github/fixtures/config-guard-present" && pwd)"
+config_fixture_dir="$(cd "$repo_root/tests/fixtures/config-guard-present" && pwd)"
 absolute_config_path="$config_fixture_dir/.verbatrarc.json"
 
 # Positive case: an absolute config-path pointing outside working-directory
 # is used as-is, not re-resolved against working-directory.
-other_working_dir="$(cd "$repo_root/.github/fixtures/config-guard-not-inherited/child" && pwd)"
+other_working_dir="$(cd "$repo_root/tests/fixtures/config-guard-not-inherited/child" && pwd)"
 positive_install_marker="$work_dir/positive-install-invoked"
 positive_output="$work_dir/positive-output.txt"
 positive_error="$work_dir/positive-error.txt"

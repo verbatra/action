@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "$0")" && pwd)"
+repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
 
-fixture_dir="$repo_root/.github/fixtures/sensitive-source"
+fixture_dir="$repo_root/tests/fixtures/sensitive-source"
 
 if [ -n "${VERBATRA_CLI:-}" ]; then
   cli=(node "$VERBATRA_CLI")
